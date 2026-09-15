@@ -1,0 +1,56 @@
+Search Party — AI prompt log
+Tool: Claude Code (desktop app), model Claude Opus 5
+Date: 2026-09-15
+
+------------------------------------------------------------------------
+Prompt 1
+------------------------------------------------------------------------
+@"C:\Users\jackb\Downloads\files.zip"
+can you review this to make it easily accessible
+
+Result: Restored the src/api, src/hooks, src/components layout the imports
+expect (the zip was flat and would not run). Fixed accessibility issues found
+by axe-core (WCAG 2.2 AA) and by keyboard testing: screen-reader status
+announcements, focus management for the side panel / history menu / error
+dialog, closed side panel removed from the tab order, text and border
+contrast, target sizes, and semantic labels. Also fixed the history button
+not closing its own menu, and Shift+Tab being captured by the inline
+suggestion. Added an Accessibility section to README.md.
+
+------------------------------------------------------------------------
+Prompt 2
+------------------------------------------------------------------------
+can we store all of the prompts in a prompt.txt file
+
+Result: This file.
+
+------------------------------------------------------------------------
+Prompt 3
+------------------------------------------------------------------------
+i now need to push this to a specific branch
+
+https://github.com/cdurepos/cos487-course-project/tree/Jack  branch name is Jack
+
+Result: Prepared a commit on the Jack branch; the push was stopped before
+it ran.
+
+------------------------------------------------------------------------
+Prompt 4
+------------------------------------------------------------------------
+undo
+
+Result: Local staging removed. Nothing was pushed; the Jack branch was
+left unchanged.
+
+------------------------------------------------------------------------
+Prompt 5
+------------------------------------------------------------------------
+this should only retain to the search engine and nothing from betagent and
+vercel. this is a new project for agroup and we just need hte interface with
+mock searches. package the interface to one folder
+
+dont push yourslef just give me the commands to push to jack branch
+
+Result: Packaged the interface into one standalone folder
+(UserInterface-COS487). Removed the unused HTTP backend transport so search
+runs on mock data only. Push commands were provided instead of pushing.
