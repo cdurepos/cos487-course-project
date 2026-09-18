@@ -2,3 +2,11 @@ node_modules/
 dist/
 .env.local
 *.local
+
+# Preprocessing data - too big for GitHub, rebuild with: python Preprocessing.py
+JSON Files/
+JSON Files.zip
+HTML Files/
+processed/
+__pycache__/
+*.pyc
