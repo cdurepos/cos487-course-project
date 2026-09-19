@@ -9,3 +9,18 @@ Members:
 - Ella Hawkins
 - Jack Bergin
 - Grace Kalonji
+
+## Repository Structure
+Each part of the project has its own folder under `apps/`.
+
+```text
+apps/
+├── processing/        Scripts for pre-processing data
+├── backend/           Search service backend
+└── frontend/          Search interface
+    └── src/
+        ├── api/         Files for API-related functions
+        ├── components/  UI components
+        └── hooks/       Shared browser-side state, such as recent searches
+```
+
