@@ -1,0 +1,22 @@
+# frontend build and install files
+node_modules/
+dist/
+
+# project data
+data/
+
+# local settings
+.env.local
+*.local
+
+# python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# processed data
+processed/
+
+# macOS
+.DS_Store
