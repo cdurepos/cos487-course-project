@@ -76,8 +76,8 @@ import re
 TEAM_NAME = "TheSearchParty"
 
 # Folders
-JSON_DIR = "JSON Files"
-OUT_DIR = "processed"
+JSON_DIR = "data/JSON Files"
+OUT_DIR = "data/processed"
 
 # Set to a number (e.g. 500) to process only the first N papers for a quick
 # test run. None means process the whole corpus.
@@ -358,8 +358,9 @@ def build_corpus():
 
 def build_queries():
     """Clean the queries the exact same way the documents were cleaned."""
+    data_dir = "data"
     for name in ("Study", "Test", "Train"):
-        path = name + ".json"
+        path = os.path.join(data_dir, name + ".json")
         if not os.path.exists(path):
             print("  %s not found, skipping." % path)
             continue

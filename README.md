@@ -15,8 +15,10 @@ Each part of the project has its own folder under `apps/`.
 
 ```text
 data/                  Project data
+indexes/               Retrieval indexes
 apps/
 ├── processing/        Scripts for pre-processing data
+├── retrieval/         Retrieval systems and index script
 ├── backend/           Search service backend
 └── frontend/          Search interface
     └── src/
