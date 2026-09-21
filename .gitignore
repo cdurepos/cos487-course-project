@@ -18,5 +18,8 @@ __pycache__/
 # processed data
 processed/
 
+# indexes
+indexes/
+
 # macOS
 .DS_Store
