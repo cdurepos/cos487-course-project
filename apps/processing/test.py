@@ -1,8 +1,8 @@
 """
-test_preprocessing.py - unit tests for Preprocessing.py
+test.py - unit tests for preprocess.py
 
-Run with:   python -m unittest test_preprocessing -v
-       or:  python test_preprocessing.py
+Run with:   python -m unittest test -v
+       or:  python test.py
 
 Uses only Python's built-in unittest module, so there is nothing extra to
 install and the grader can run these directly.
@@ -24,7 +24,7 @@ import shutil
 import tempfile
 import unittest
 
-import Preprocessing as P
+import preprocess as P
 
 
 class TestTextCleaning(unittest.TestCase):
@@ -448,26 +448,29 @@ class TestQueryFiles(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self.out_dir = os.path.join(self.tmp, "processed")
+        self.data_dir = os.path.join(self.tmp, "data")
+        self.out_dir = os.path.join(self.data_dir, "processed")
         os.makedirs(self.out_dir)
 
         queries = [
             {"query_id": 2001, "query": "How does RAG reduce computation?", "label": "Easy"},
             {"query_id": 2002, "query": "What are C-Uniform trajectories?", "label": "Medium"},
         ]
-        with open(os.path.join(self.tmp, "Study.json"), "w", encoding="utf-8") as f:
+        # build_queries() reads "<DATA_DIR>/Study.json", so the fixture goes
+        # in data/, matching where the real Study/Test/Train files live.
+        with open(os.path.join(self.data_dir, "Study.json"), "w", encoding="utf-8") as f:
             json.dump(queries, f)
 
-        self.old_cwd = os.getcwd()
+        self.old_data_dir = P.DATA_DIR
         self.old_out_dir = P.OUT_DIR
-        os.chdir(self.tmp)
+        P.DATA_DIR = self.data_dir
         P.OUT_DIR = self.out_dir
 
         with contextlib.redirect_stdout(io.StringIO()):
             P.build_queries()
 
     def tearDown(self):
-        os.chdir(self.old_cwd)
+        P.DATA_DIR = self.old_data_dir
         P.OUT_DIR = self.old_out_dir
         shutil.rmtree(self.tmp)
 

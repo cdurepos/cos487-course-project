@@ -5,7 +5,7 @@ Team: TheSearchParty
 Turns the raw arXiv data into clean token files that the TF-IDF and BM25
 scripts can load directly.
 
-Corpus: 34,308 papers in "JSON Files/", each with title, abstract, and a
+Corpus: 34,308 papers in "data/JSON Files/", each with title, abstract, and a
 "paragraphs" dict mapping paragraph IDs (e.g. "2408.00001_8") to text.
 That works out to 2,275,574 paragraphs total.
 
@@ -17,7 +17,7 @@ two levels (see Study_paper_qrel.tsv and Study_paragraph_qrel.tsv):
 
 WHAT GETS WRITTEN TO DISK, AND WHAT DOES NOT
 --------------------------------------------
-The files in processed/ hold CLEANED BUT UNSTEMMED words. Cleaning (removing
+The files in data/processed/ hold CLEANED BUT UNSTEMMED words. Cleaning (removing
 math, citations, URLs, stopwords) throws away things that are not content, so
 it is safe to do once and reuse. Stemming is different: it is lossy and it is
 a retrieval decision, not a data-cleaning one. Once "code" is written to disk
@@ -53,15 +53,15 @@ CLEANING STEPS (identical for documents and queries)
 
 OUTPUT FILES (all tab separated, "id <TAB> word word word")
 ------------------------------------------------------------
-    processed/paper_corpus.tsv       one row per paper
-    processed/paragraph_corpus.tsv   one row per paragraph
-    processed/paper_titles.tsv       id, title, abstract - for the interface
-    processed/queries_study.tsv      one row per query
-    processed/queries_test.tsv
-    processed/queries_train.tsv
-    processed/build_info.txt         corpus statistics for the report
+    data/processed/paper_corpus.tsv       one row per paper
+    data/processed/paragraph_corpus.tsv   one row per paragraph
+    data/processed/paper_titles.tsv       id, title, abstract - for the interface
+    data/processed/queries_study.tsv      one row per query
+    data/processed/queries_test.tsv
+    data/processed/queries_train.tsv
+    data/processed/build_info.txt         corpus statistics for the report
 
-Run:  python Preprocessing.py
+Run:  python preprocess.py
 """
 
 import glob
@@ -75,9 +75,13 @@ import re
 # being retyped in each one.
 TEAM_NAME = "TheSearchParty"
 
-# Folders
-JSON_DIR = "JSON Files"
-OUT_DIR = "processed"
+# Folders. Every input (the paper JSON files and the Study/Test/Train query
+# files) lives under data/, and every generated file is written under
+# data/processed/, so the raw corpus and the build output stay together and
+# out of the way of the app code.
+DATA_DIR = "data"
+JSON_DIR = os.path.join(DATA_DIR, "JSON Files")
+OUT_DIR = os.path.join(DATA_DIR, "processed")
 
 # Set to a number (e.g. 500) to process only the first N papers for a quick
 # test run. None means process the whole corpus.
@@ -218,7 +222,7 @@ def preprocess(text, stem=False):
     Used for documents at build time and for queries at search time, so that
     both sides are guaranteed to be treated the same way.
 
-    stem defaults to False because that matches what is saved in processed/.
+    stem defaults to False because that matches what is saved in data/processed/.
     The search interface should call preprocess(user_text, stem=True) only if
     the index it is searching was built from stemmed tokens.
     """
@@ -359,7 +363,7 @@ def build_corpus():
 def build_queries():
     """Clean the queries the exact same way the documents were cleaned."""
     for name in ("Study", "Test", "Train"):
-        path = name + ".json"
+        path = os.path.join(DATA_DIR, name + ".json")
         if not os.path.exists(path):
             print("  %s not found, skipping." % path)
             continue
