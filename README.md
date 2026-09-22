@@ -19,12 +19,14 @@ indexes/               Retrieval indexes
 apps/
 ├── processing/        Scripts for pre-processing data
 ├── retrieval/         Retrieval systems and index script
-├── backend/           Search service backend
-└── frontend/          Search interface
-    └── src/
-        ├── api/         Files for API-related functions
-        ├── components/  UI components
-        └── hooks/       Shared browser-side state, such as recent searches
+├── evaluation/        Evaluation scripts
+├── prod/
+    ├── backend/           Search service backend
+    └── frontend/          Search interface
+        └── src/
+            ├── api/         Files for API-related functions
+            ├── components/  UI components
+            └── hooks/       Shared browser-side state, such as recent searches
 ```
 
 ## Data Setup
