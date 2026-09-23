@@ -14,6 +14,7 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+test_tfidf.py
 
 # processed data
 processed/
