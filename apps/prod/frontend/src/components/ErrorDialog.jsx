@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import styles from './ErrorDialog.module.css';
 
 const COPY = {
   EMPTY_QUERY: {
@@ -26,10 +27,6 @@ const COPY = {
 /**
  * Native <dialog> opened with showModal(): the browser traps focus inside it,
  * makes the page behind inert, and closes it on Esc.
- *
- * Every way out (button, backdrop, Esc, or the browser closing it on its own)
- * goes through the native `close` event, so React state can never disagree
- * with what is on screen.
  */
 export default function ErrorDialog({ code, onDismiss }) {
   const dialogRef = useRef(null);
@@ -48,13 +45,12 @@ export default function ErrorDialog({ code, onDismiss }) {
   return (
     <dialog
       ref={dialogRef}
-      className="dialog"
+      className={styles.root}
       role="alertdialog"
       aria-labelledby="dialog-title"
       aria-describedby="dialog-body"
       onClose={onDismiss}
       onKeyDown={(e) => {
-        // Handle Esc ourselves rather than trusting every browser's built-in cancel.
         if (e.key === 'Escape') {
           e.preventDefault();
           close();
@@ -62,14 +58,14 @@ export default function ErrorDialog({ code, onDismiss }) {
       }}
       onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
-      <div className="dialog__inner">
-        <h2 className="dialog__title" id="dialog-title">
+      <div className={styles.inner}>
+        <h2 className={styles.title} id="dialog-title">
           {copy.title}
         </h2>
-        <p className="dialog__body" id="dialog-body">
+        <p className={styles.body} id="dialog-body">
           {copy.body}
         </p>
-        <button type="button" className="dialog__action" onClick={close} autoFocus>
+        <button type="button" className={styles.action} onClick={close} autoFocus>
           {copy.action}
         </button>
       </div>

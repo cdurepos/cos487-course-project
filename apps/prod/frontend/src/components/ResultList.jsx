@@ -1,11 +1,10 @@
 import { useEffect, useRef } from 'react';
+import styles from './ResultList.module.css';
 
-export default function ResultList({ results, query, totalBeforeFilters, onResetFilters }) {
+export default function ResultList({ results, query }) {
   const listRef = useRef(null);
   const linkRefs = useRef([]);
 
-  /* Arrow keys walk the list — only from the page body or from a result, so
-     they never hijack arrows inside the side panel, menus or form controls. */
   useEffect(() => {
     function onKey(event) {
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -28,61 +27,50 @@ export default function ResultList({ results, query, totalBeforeFilters, onReset
   }, [results]);
 
   if (results.length === 0) {
-    const filtered = totalBeforeFilters > 0;
     return (
-      <div className="empty">
-        <h2 className="empty__head">
-          {filtered
-            ? 'Your filters hid every result.'
-            : `Nothing in the collection matches “${query}”.`}
-        </h2>
-        <p className="empty__body">
-          {filtered
-            ? `${totalBeforeFilters} documents matched before filtering.`
-            : 'Try fewer words, or a broader term.'}
-        </p>
-        {filtered && (
-          <button type="button" className="textbtn" onClick={onResetFilters}>
-            Reset filters
-          </button>
-        )}
+      <div className={styles.empty}>
+        <h2 className={styles.emptyHead}>Nothing in the collection matches “{query}”.</h2>
+        <p className={styles.emptyBody}>Try fewer words, or a broader term.</p>
       </div>
     );
   }
 
   return (
     <>
-      <ol className="results" ref={listRef} aria-label={`Results for “${query}”`}>
+      <ol className={styles.list} ref={listRef} aria-label={`Results for “${query}”`}>
         {results.map((result, i) => (
           <li key={result.id}>
-            <article className="card">
-              <h2 className="card__title">
-                <a
-                  ref={(el) => (linkRefs.current[i] = el)}
-                  href={result.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {result.title}
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </a>
+            <article className={styles.card}>
+              <h2 className={styles.title}>
+                {result.url && result.url !== '#' ? (
+                  <a
+                    ref={(el) => (linkRefs.current[i] = el)}
+                    href={result.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {result.title}
+                    <span className="srOnly"> (opens in a new tab)</span>
+                  </a>
+                ) : (
+                  <span ref={(el) => (linkRefs.current[i] = el)} tabIndex={0}>
+                    {result.title}
+                  </span>
+                )}
               </h2>
-              <p className="card__snippet">{result.snippet}</p>
-              <p className="card__meta">
-                <span>
-                  {result.authors}
-                  {result.venue ? `, ${result.venue}` : ''} {result.year ?? ''}
-                </span>
-                <span className="card__score">
-                  <span className="sr-only">Relevance score </span>
-                  {result.score.toFixed(2)}
+              {result.snippet ? <p className={styles.snippet}>{result.snippet}</p> : null}
+              <p className={styles.meta}>
+                <span>{result.id}</span>
+                <span className={styles.score}>
+                  <span className="srOnly">Relevance score </span>
+                  {result.score.toFixed(4)}
                 </span>
               </p>
             </article>
           </li>
         ))}
       </ol>
-      <p className="results__end">End of results for “{query}”.</p>
+      <p className={styles.end}>End of results for “{query}”.</p>
     </>
   );
 }

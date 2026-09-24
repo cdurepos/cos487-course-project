@@ -1,0 +1,38 @@
+.root {
+  width: min(26rem, calc(100% - 3rem));
+  padding: 0;
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 12px;
+  box-shadow: 0 24px 48px -24px rgba(21, 23, 28, 0.55);
+}
+
+.root::backdrop {
+  background: rgba(21, 23, 28, 0.32);
+}
+
+.inner {
+  padding: 1.5rem;
+}
+
+.title {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+
+.body {
+  margin: 0 0 1.25rem;
+  color: var(--ink-soft);
+}
+
+.action {
+  padding: 0.5625rem 1rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}

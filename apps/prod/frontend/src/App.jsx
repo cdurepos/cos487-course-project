@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { search, SearchError } from './api/searchClient';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { search, SearchError } from './api/search';
 import { useSearchHistory } from './hooks/useSearchHistory';
-import { applyFilters, countActive, EMPTY_FILTERS } from './components/FilterPanel';
-import { BackIcon, HistoryIcon, MenuIcon } from './components/Icons';
+import { DEFAULT_SETTINGS } from './components/Settings';
+import { BackIcon, HistoryIcon, SettingsIcon } from './components/Icons';
 import SearchBar from './components/SearchBar';
 import Sidebar from './components/Sidebar';
 import HistoryMenu from './components/HistoryMenu';
 import LoadingState from './components/LoadingState';
 import ResultList from './components/ResultList';
 import ErrorDialog from './components/ErrorDialog';
+import styles from './App.module.css';
 
 const RAIL_ID = 'search-rail';
 const HISTORY_ID = 'history-menu';
@@ -24,9 +25,8 @@ export default function App() {
   const [errorCode, setErrorCode] = useState(null);
   const [announcement, setAnnouncement] = useState('');
 
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [railOpen, setRailOpen] = useState(false);
-  const [railPanel, setRailPanel] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const { history, remember, clear } = useSearchHistory();
@@ -36,15 +36,11 @@ export default function App() {
   const railReturnRef = useRef(null);
   const historyWrapRef = useRef(null);
   const historyButtonRef = useRef(null);
-  const filtersSeen = useRef(false);
-
-  const visible = useMemo(() => applyFilters(results, filters), [results, filters]);
-  const activeFilters = countActive(filters);
-
-  /* --------------------------------------------------------- lifecycle --- */
+  const settingsSeen = useRef(false);
 
   const runSearch = useCallback(
     async (raw) => {
+      abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
 
@@ -61,8 +57,11 @@ export default function App() {
       );
 
       try {
-        const response = await search({ query: raw, filters, signal: controller.signal });
-        const shown = applyFilters(response.results, filters).length;
+        const response = await search({
+          query: raw,
+          settings,
+          signal: controller.signal,
+        });
         const total = response.results.length;
         setResults(response.results);
         setSubmitted(response.query);
@@ -73,12 +72,11 @@ export default function App() {
         setAnnouncement(
           total === 0
             ? `No documents match “${response.query}”.`
-            : shown === total
-              ? `${docs(total)} found for “${response.query}”.`
-              : `${shown} of ${docs(total)} shown for “${response.query}” after filtering.`
+            : `${docs(total)} found for “${response.query}”.`
         );
       } catch (err) {
         if (err?.name === 'AbortError') {
+          if (abortRef.current !== controller) return;
           setPhase('idle');
           setElapsed(null);
           setAnnouncement('Search cancelled.');
@@ -90,31 +88,28 @@ export default function App() {
         setAnnouncement('');
       } finally {
         clearInterval(tick);
-        abortRef.current = null;
+        if (abortRef.current === controller) abortRef.current = null;
       }
     },
-    [filters, remember, submitted]
+    [settings, remember, submitted]
   );
 
-  /* Filters apply without a reload, so say what changed. */
   useEffect(() => {
-    if (!filtersSeen.current) {
-      filtersSeen.current = true;
+    if (!settingsSeen.current) {
+      settingsSeen.current = true;
       return;
     }
-    if (phase === 'results') {
-      setAnnouncement(`${visible.length} of ${docs(results.length)} shown.`);
+    if (phase === 'results' && submitted) {
+      runSearch(submitted);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [settings]);
 
   useEffect(() => {
     document.title = phase === 'results' && submitted ? `${submitted} – Search Party` : 'Search Party';
   }, [phase, submitted]);
 
-  /** Back arrow: cancels a search in flight, or steps off the results page. */
   function goBack() {
-    // The back button unmounts either way; put focus somewhere useful.
     requestAnimationFrame(() => inputRef.current?.focus());
     if (phase === 'loading') {
       abortRef.current?.abort();
@@ -142,13 +137,11 @@ export default function App() {
     if (restoreFocus) historyButtonRef.current?.focus();
   }, []);
 
-  /** Opening moves focus into the rail; closing hands it back to the opener. */
-  function openRail(panel) {
+  function openRail() {
     if (!railOpen) railReturnRef.current = document.activeElement;
     setRailOpen(true);
-    setRailPanel(panel);
     requestAnimationFrame(() =>
-      railRef.current?.querySelector(`[data-panel="${panel}"]`)?.focus()
+      railRef.current?.querySelector('[data-panel="settings"]')?.focus()
     );
   }
 
@@ -161,8 +154,6 @@ export default function App() {
     }
   }
 
-  /* ---------------------------------------------------------- shortcuts --- */
-
   useEffect(() => {
     function onKey(event) {
       const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
@@ -173,10 +164,8 @@ export default function App() {
         return;
       }
       if (event.key === 'Escape') {
-        // The dialog and the history menu handle their own Esc.
         if (errorCode || historyOpen) return;
         if (railOpen) return closeRail();
-        // Only the search box itself — Esc in the year field must not wipe the query.
         if (document.activeElement === inputRef.current && query) setQuery('');
       }
     }
@@ -184,30 +173,24 @@ export default function App() {
     return () => document.removeEventListener('keydown', onKey);
   });
 
-  /* ------------------------------------------------------------- render --- */
-
   const showBack = phase !== 'idle';
   const latency =
     phase === 'loading' ? `${elapsed} ms` : elapsed == null ? '—' : `${elapsed} ms`;
 
   return (
-    <div className={`shell ${railOpen ? 'rail-open' : ''}`}>
+    <div className={`${styles.shell} ${railOpen ? styles.railOpen : ''}`}>
       <Sidebar
         id={RAIL_ID}
         ref={railRef}
         open={railOpen}
         onClose={closeRail}
-        panel={railPanel}
-        onPanelChange={setRailPanel}
-        filters={filters}
-        onFiltersChange={setFilters}
-        onFiltersReset={() => setFilters(EMPTY_FILTERS)}
-        resultCount={visible.length}
-        hasResults={phase === 'results'}
+        settings={settings}
+        onSettingsChange={setSettings}
+        onSettingsReset={() => setSettings(DEFAULT_SETTINGS)}
       />
 
-      <div className="main">
-        <header className="topbar">
+      <div className={styles.main}>
+        <header className={styles.topbar}>
           {showBack ? (
             <button
               type="button"
@@ -220,17 +203,17 @@ export default function App() {
           ) : (
             <button
               type="button"
-              className="iconbtn"
-              onClick={() => (railOpen ? closeRail() : openRail('filters'))}
+              className={`iconbtn ${railOpen ? 'is-on' : ''}`}
+              onClick={() => (railOpen ? closeRail() : openRail())}
               aria-expanded={railOpen}
               aria-controls={RAIL_ID}
-              aria-label="Filters and user guide"
+              aria-label="Settings and user guide"
             >
-              <MenuIcon width={28} height={28} />
+              <SettingsIcon width={28} height={28} />
             </button>
           )}
 
-          <div className="topbar__end" ref={historyWrapRef}>
+          <div className={styles.topbarEnd} ref={historyWrapRef}>
             <button
               ref={historyButtonRef}
               type="button"
@@ -256,8 +239,8 @@ export default function App() {
           </div>
         </header>
 
-        <main className={`stage ${phase === 'idle' ? 'stage--idle' : ''}`}>
-          <h1 className="wordmark">Search Party</h1>
+        <main className={`${styles.stage} ${phase === 'idle' ? styles.stageIdle : ''}`}>
+          <h1 className={styles.wordmark}>Search Party</h1>
 
           <SearchBar
             ref={inputRef}
@@ -265,41 +248,23 @@ export default function App() {
             onChange={setQuery}
             onSubmit={runSearch}
             onClear={clearInput}
-            onToggleFilters={() =>
-              railOpen && railPanel === 'filters' ? closeRail() : openRail('filters')
-            }
-            filtersOpen={railOpen && railPanel === 'filters'}
-            filtersControls={RAIL_ID}
-            activeFilterCount={activeFilters}
-            history={history}
             placeholder={phase === 'results' ? 'Modify search' : 'Search the collection'}
           />
 
-          <p className="latency">
-            Response time: <span className="latency__value">{latency}</span>
+          <p className={styles.latency}>
+            Response time: <span className={styles.latencyValue}>{latency}</span>
             {phase === 'results' && (
-              <span className="latency__hits">
-                {visible.length} of {docs(results.length)}
-                {activeFilters > 0 ? ' after filtering' : ''}
-              </span>
+              <span className={styles.latencyHits}>{docs(results.length)}</span>
             )}
           </p>
 
-          {/* One polite live region, always mounted, so every state change is heard. */}
-          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          <p className="srOnly" role="status" aria-live="polite" aria-atomic="true">
             {announcement}
           </p>
 
           {phase === 'loading' && <LoadingState onCancel={goBack} />}
 
-          {phase === 'results' && (
-            <ResultList
-              results={visible}
-              query={submitted}
-              totalBeforeFilters={results.length}
-              onResetFilters={() => setFilters(EMPTY_FILTERS)}
-            />
-          )}
+          {phase === 'results' && <ResultList results={results} query={submitted} />}
         </main>
       </div>
 
@@ -308,7 +273,6 @@ export default function App() {
           code={errorCode}
           onDismiss={() => {
             setErrorCode(null);
-            // Wait for the modal to close — the page behind it is inert until then.
             requestAnimationFrame(() => inputRef.current?.focus());
           }}
         />
