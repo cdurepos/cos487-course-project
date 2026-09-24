@@ -16,11 +16,8 @@ __pycache__/
 *.pyc
 test_tfidf.py
 
-# processed data
+# processed data / indexes (also covered by data/, kept as a backstop)
 processed/
-
-# indexes
-indexes/
 
 # macOS
 .DS_Store

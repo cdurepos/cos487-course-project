@@ -1,6 +1,6 @@
 """
 Creates inverted indexes for the corpus at both the paragraph and paper levels, with and without stemming.
-Writes inverted indexes to the indexes/ directory
+Writes inverted indexes to data/indexes/
 
 Should be run as a module from directory root (i.e., cos487-course-project/) with the command:
     python -m apps.retrieval.index
@@ -15,7 +15,7 @@ from typing import Literal
 
 from apps.processing.preprocess import load_corpus
 
-INDEX_DIR = "indexes"
+INDEX_DIR = os.path.join("data", "indexes")
 
 
 def build_index(level: Literal["paragraph", "paper"], stem: bool):
