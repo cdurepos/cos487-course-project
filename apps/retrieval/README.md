@@ -26,10 +26,10 @@ This builds four indexes:
 * Paper index without stemming
 * Paper index with stemming
 
-The resulting indexes are saved to the `indexes/` directory:
+The resulting indexes are saved under `data/indexes/`:
 
 ```text
-indexes/
+data/indexes/
 ├── paragraph_index_unstemmed.json
 ├── paragraph_index_stemmed.json
 ├── paper_index_unstemmed.json

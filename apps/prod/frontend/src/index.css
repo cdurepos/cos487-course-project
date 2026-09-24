@@ -1,0 +1,113 @@
+/* Global tokens, resets, and shared controls. Component styles live in *.module.css. */
+
+:root {
+  --paper: #f4f5f6;
+  --surface: #ffffff;
+  --ink: #15171c;
+  --ink-soft: #454b56;
+  --muted: #5f6570;
+  --line: #d7dade;
+  --line-strong: #80868f;
+  --line-soft: #e5e8ea;
+  --accent: #1b3fa0;
+
+  --rail-w: 18rem;
+  --radius: 10px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.iconbtn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.iconbtn:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+
+.iconbtn.is-on {
+  color: var(--accent);
+}
+
+.iconbtn--quiet {
+  width: 2rem;
+  height: 2rem;
+  color: var(--muted);
+}
+
+.textbtn {
+  min-height: 1.5rem;
+  border: 0;
+  padding: 0.125rem 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

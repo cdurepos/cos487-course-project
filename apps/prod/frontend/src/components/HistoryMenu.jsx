@@ -1,14 +1,13 @@
 import { useEffect, useRef } from 'react';
+import styles from './HistoryMenu.module.css';
 
 /**
  * `boundaryRef` wraps both this menu and the button that toggles it, so a click
- * on the toggle is not mistaken for a click outside (which closed the menu on
- * mousedown and then reopened it on click).
+ * on the toggle is not mistaken for a click outside.
  */
 export default function HistoryMenu({ id, history, onPick, onClear, onClose, boundaryRef }) {
   const ref = useRef(null);
 
-  /* Move focus in on open so keyboard and screen-reader users land in the menu. */
   useEffect(() => {
     const first = ref.current?.querySelector('button');
     (first ?? ref.current)?.focus();
@@ -32,30 +31,29 @@ export default function HistoryMenu({ id, history, onPick, onClear, onClose, bou
 
   function clearAll() {
     onClear();
-    /* The clear button is about to unmount; keep focus inside the menu. */
     ref.current?.focus();
   }
 
   return (
     <div
       id={id}
-      className="history"
+      className={styles.root}
       ref={ref}
       role="dialog"
       aria-labelledby={`${id}-title`}
       tabIndex={-1}
     >
-      <h2 className="history__title" id={`${id}-title`}>
+      <h2 className={styles.title} id={`${id}-title`}>
         Recent searches
       </h2>
 
       {history.length === 0 ? (
-        <p className="history__empty">Searches you run will show up here.</p>
+        <p className={styles.empty}>Searches you run will show up here.</p>
       ) : (
-        <ul className="history__list">
+        <ul className={styles.list}>
           {history.map((query) => (
             <li key={query}>
-              <button type="button" className="history__item" onClick={() => onPick(query)}>
+              <button type="button" className={styles.item} onClick={() => onPick(query)}>
                 {query}
               </button>
             </li>
@@ -64,7 +62,7 @@ export default function HistoryMenu({ id, history, onPick, onClear, onClose, bou
       )}
 
       {history.length > 0 && (
-        <button type="button" className="history__clear" onClick={clearAll}>
+        <button type="button" className={styles.clear} onClick={clearAll}>
           Clear history
         </button>
       )}

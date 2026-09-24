@@ -1,0 +1,114 @@
+.rail {
+  overflow: hidden;
+  background: #eceef0;
+  border-right: 1px solid var(--line);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.22s var(--ease), visibility 0s linear 0.22s;
+}
+
+.open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.22s var(--ease), visibility 0s;
+}
+
+.head {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 0.75rem 0;
+}
+
+.body {
+  padding: 0.25rem 1rem 2rem;
+}
+
+.heading {
+  margin: 0 0 0.75rem;
+  padding: 0 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.625rem 0.5rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 1.0625rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.tab:hover {
+  background: rgba(21, 23, 28, 0.05);
+}
+
+.tabOn {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.chevron {
+  margin-left: auto;
+  transition: transform 0.28s var(--ease);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* Smooth height + fade for the user-guide dropdown. */
+.fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.28s ease;
+}
+
+.foldOpen {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s ease 0.04s;
+}
+
+.foldInner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+@media (max-width: 700px) {
+  .rail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: min(var(--rail-w), 86vw);
+    transform: translateX(-100%);
+    transition: transform 0.28s var(--ease), opacity 0.22s var(--ease),
+      visibility 0s linear 0.28s;
+  }
+
+  .open {
+    transform: none;
+    transition: transform 0.28s var(--ease), opacity 0.22s var(--ease), visibility 0s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold,
+  .chevron {
+    transition: none;
+  }
+}

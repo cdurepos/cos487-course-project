@@ -14,8 +14,7 @@ Members:
 Each part of the project has its own folder under `apps/`.
 
 ```text
-data/                  Project data
-indexes/               Retrieval indexes
+data/                  Project data (corpus, processed tokens, indexes)
 apps/
 ├── processing/        Scripts for pre-processing data
 ├── retrieval/         Retrieval systems and index script
@@ -35,6 +34,7 @@ Users must download course data files. For installation, ~1.9GB of disk space is
 data/
 ├── JSON Files/     Unzipped data corpus
 ├── Study.json      Query file
-└── processed/      Written by the preprocessing script
+├── processed/      Written by the preprocessing script
+└── indexes/        Written by the retrieval index script
 ```
 
