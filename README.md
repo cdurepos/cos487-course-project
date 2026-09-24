@@ -38,3 +38,26 @@ data/
 └── indexes/        Written by the retrieval index script
 ```
 
+## Production App
+Install Python dependencies once from the repository root:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Backend
+From the repository root:
+
+```bash
+uvicorn apps.prod.backend.main:app --reload --port 8000
+```
+
+### Frontend
+In a second terminal:
+
+```bash
+cd apps/prod/frontend
+npm install
+npm run dev
+```
+
