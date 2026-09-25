@@ -4,6 +4,8 @@ Writes inverted indexes to data/indexes/
 
 Should be run as a module from directory root (i.e., cos487-course-project/) with the command:
     python -m apps.retrieval.index
+Forced rebuild can be enabled with the --force flag:
+    python -m apps.retrieval.index --force
 
 Also contains functions to load the inverted index and retrieve information from it, such as term frequency and document length.
 """
@@ -12,13 +14,14 @@ import os
 import json
 import time
 from typing import Literal
+import argparse
 
 from apps.processing.preprocess import load_corpus
 
 INDEX_DIR = os.path.join("data", "indexes")
 
 
-def build_index(level: Literal["paragraph", "paper"], stem: bool):
+def build_index(level: Literal["paragraph", "paper"], stem: bool, force_rebuild: bool=False):
     """Builds an inverted index for the given level
 
     Args:
@@ -26,6 +29,11 @@ def build_index(level: Literal["paragraph", "paper"], stem: bool):
         stem (bool): Whether to use stemming or not
     """
 
+    index_path = f"{INDEX_DIR}/{level}_index_{'un' if not stem else ''}stemmed.json"
+    if os.path.exists(index_path) and not force_rebuild:
+        print(f"Index file {index_path} already exists. Skipping index build.")
+        return
+    
     start = time.time()
     document_lengths = {}
     terms = {}
@@ -42,12 +50,10 @@ def build_index(level: Literal["paragraph", "paper"], stem: bool):
                 terms[token][docid] = 0
             terms[token][docid] += 1
 
-    index_path = f"{INDEX_DIR}/{level}_index_{'un' if not stem else ''}stemmed.json"
     with open(index_path, "w", encoding="utf-8") as file:
         json.dump(index, file, indent=4)
     print(f"Built {level} index with{'out' if not stem else ''} stemming, saved to {index_path}")
     print(f"Time taken: {(time.time() - start) / 60:.2f} minutes\n")
-
 
 
 def load_index(level: Literal["paragraph", "paper"], stem: bool) -> dict:
@@ -129,10 +135,17 @@ def get_average_document_length(index: dict) -> float:
 
 def main():
     """Main function to build the indexes for both paragraph and paper levels, with and without stemming."""
+    parser = argparse.ArgumentParser(description="Build inverted indexes for the corpus.")
+    parser.add_argument("--force", action="store_true", help="Force rebuild of indexes even if they already exist.")
+    parser.add_argument("--index_dir", type=str, help="Directory to save the indexes.")
+    args = parser.parse_args()
+    if args.index_dir:
+        global INDEX_DIR
+        INDEX_DIR = args.index_dir
     os.makedirs(INDEX_DIR, exist_ok=True)
     for level in ("paragraph", "paper"):
         for stem in (True, False):
-            build_index(level, stem)
+            build_index(level, stem, force_rebuild=args.force)
 
 
 if __name__ == "__main__":

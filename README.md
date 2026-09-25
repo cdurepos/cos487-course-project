@@ -15,6 +15,7 @@ Each part of the project has its own folder under `apps/`.
 
 ```text
 data/                  Project data (corpus, processed tokens, indexes)
+bin/                   Install and run scripts
 apps/
 ├── processing/        Scripts for pre-processing data
 ├── retrieval/         Retrieval systems and index script
@@ -29,7 +30,7 @@ apps/
 ```
 
 ## Data Setup
-Users must download COS487 Information Retrieval course data files. For installation, ~1.9GB of disk space is required. Arrange data files as specified below.
+Users must download COS487 Information Retrieval course data files. For installation, ~9GB of disk space is required. Arrange data files as specified below.
 ```text
 data/
 ├── JSON Files/     Unzipped data corpus
