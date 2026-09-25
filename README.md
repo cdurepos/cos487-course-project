@@ -29,15 +29,13 @@ apps/
 ```
 
 ## Data Setup
-Users must download course data files. For installation, ~1.9GB of disk space is required. Arrange data files as specified below.
+Users must download COS487 Information Retrieval course data files. For installation, ~1.9GB of disk space is required. Arrange data files as specified below.
 ```text
 data/
 ├── JSON Files/     Unzipped data corpus
-├── Study.json      Query file
-├── processed/      Written by the preprocessing script
-└── indexes/        Written by the retrieval index script
+├── qrels/          QREL files
+└── Study.json      Query file
 ```
-
 ## Production App
 Install Python dependencies once from the repository root:
 
@@ -61,3 +59,14 @@ npm install
 npm run dev
 ```
 
+## Evaluation (BM25 vs TF-IDF)
+Uses the Study qrels in `data/qrels/` and the [ranx](https://github.com/AmenRa/ranx) library.
+Settings live in `apps/evaluation/config.yaml`.
+
+```bash
+pip install -r requirements.txt
+python -m apps.evaluation.evaluate
+```
+
+Edit the YAML to change metrics, levels, stemming, or set `limit: 10` for a smoke test, then re-run.
+See `apps/evaluation/README.md` for details.
