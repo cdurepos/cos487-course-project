@@ -1,0 +1,46 @@
+# Evaluation settings for `python -m apps.evaluation.evaluate`
+# Edit this file, then re-run from the repository root.
+
+# Which query file / qrel set to use.
+# Allowed values: study | test
+# Note: only "study" has qrels under data/qrels/ right now.
+set: study
+
+# Index levels to evaluate (one or both).
+# Allowed values per item: paper | paragraph
+levels:
+  - paper
+  - paragraph
+
+# Retrieval systems to run and compare.
+# Allowed values per item: bm25 | tfidf
+methods:
+  - bm25
+  - tfidf
+
+# How many documents to retrieve per query (TREC run length).
+# Allowed values: any integer >= 1 (typical: 10, 100)
+k: 100
+
+# Whether to use stemmed indexes.
+# Allowed values: true | false
+stem: false
+
+# Cap how many queries to evaluate.
+# Allowed values: null (all queries) | integer >= 1 (e.g. 10 for a smoke test)
+limit: null
+
+# Metrics to compute with ranx. Add or remove freely.
+# Allowed values (common):
+#   map
+#   mrr
+#   ndcg@5, ndcg@10, ndcg@20
+#   precision@5, precision@10
+#   recall@10, recall@100
+#   hit_rate@10
+# See ranx docs for the full list.
+metrics:
+  - map
+  - mrr
+  - ndcg@10
+  - recall@100

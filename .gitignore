@@ -12,9 +12,12 @@ data/
 # python
 venv/
 .venv/
+.venv-*/
 __pycache__/
 *.pyc
 test_tfidf.py
+.mplconfig/
+.ir_datasets/
 
 # processed data / indexes (also covered by data/, kept as a backstop)
 processed/
