@@ -123,11 +123,6 @@ echo "Frontend:   http://${FRONTEND_HOST}:${FRONTEND_PORT}"
 echo
 
 echo "Starting backend..."
-# "$CONDA_EXE" run -n "$ENV_NAME" \
-#     python -m uvicorn apps.prod.backend.main:app \
-#     --host "$BACKEND_HOST" \
-#     --port "$BACKEND_PORT" \
-#     --reload &
 "$CONDA_EXE" run -n "$ENV_NAME" uvicorn apps.prod.backend.main:app --reload --port "$BACKEND_PORT" &
 BACKEND_PID=$!
 
@@ -135,7 +130,6 @@ echo "Starting frontend..."
 (
     cd "$REPO_ROOT/apps/prod/frontend"
     "$CONDA_EXE" run -n "$ENV_NAME" npm run dev
-    # npm run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT"
 ) &
 FRONTEND_PID=$!
 echo
