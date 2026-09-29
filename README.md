@@ -15,6 +15,7 @@ Each part of the project has its own folder under `apps/`.
 
 ```text
 data/                  Project data (corpus, processed tokens, indexes)
+bin/                   Install and run scripts
 apps/
 ├── processing/        Scripts for pre-processing data
 ├── retrieval/         Retrieval systems and index script
@@ -28,29 +29,49 @@ apps/
             └── hooks/       Shared browser-side state, such as recent searches
 ```
 
-## Data Setup
-Users must download COS487 Information Retrieval course data files. For installation, ~1.9GB of disk space is required. Arrange data files as specified below.
+## Use Guide
+
+Instructions to run the production app.
+
+### Data Setup
+Users must download COS487 Information Retrieval course data files. For installation, ~9GB of disk space is required. Arrange data files as specified below.
 ```text
 data/
 ├── JSON Files/     Unzipped data corpus
 ├── qrels/          QREL files
 └── Study.json      Query file
 ```
-## Production App
+
+### Running the Application
+To launch this application on Linux or MacOS, first set up the data (as outlined above). Then, run the following commands in a bash terminal from the repository root. By default, the backend runs on `localhost:8000` and the frontend runs on `localhost:5173`.
+
+To set up environment and install dependencies:
+
+```bash
+bash bin/install.sh
+```
+
+To launch the application:
+
+```bash
+bash bin/run.sh
+```
+
+#### Or to set up manually
 Install Python dependencies once from the repository root:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Backend
+##### Backend
 From the repository root:
 
 ```bash
 uvicorn apps.prod.backend.main:app --reload --port 8000
 ```
 
-### Frontend
+##### Frontend
 In a second terminal:
 
 ```bash
