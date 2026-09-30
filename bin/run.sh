@@ -3,23 +3,31 @@
 set -euo pipefail
 set -m
 
-# Run the COS487 Search Party application.
+# Run the COS487 Search Party project in one of two modes.
 #
-# This script:
-#   1. Runs from the repository root regardless of the caller's current directory.
-#   2. Starts the FastAPI backend on port 8000.
-#   3. Starts the Vite/React frontend on port 5173.
+# Usage:
+#   bash bin/run.sh --prod            Start the search interface
+#   bash bin/run.sh --eval            Run the retrieval evaluation pipeline
+#
+# --prod starts the FastAPI backend on port 8000 and the Vite/React frontend on
+# port 5173. The frontend proxies /search to the backend.
+#
+# --eval evaluates BM25 against TF-IDF over the course qrels, writing TREC runs
+# and metric summaries under data/. Settings come from
+# apps/evaluation/config.yaml; any extra arguments are passed straight through to
+# the evaluation script, so an alternate config file can be used:
+#
+#   bash bin/run.sh --eval path/to/other-config.yaml
 #
 # Prerequisites:
-#   - Run the repository's install script first.
-#     - This can be done by running the following commands from the repository root:
-#       - chmod +x ./bin/install.sh
-#       - ./bin/install.sh
-#
-# The frontend is configured to proxy /search to http://localhost:8000.
+#   - Run the repository's install script first. It creates the Conda
+#     environment, preprocesses the corpus, and builds the retrieval indexes:
+#       - bash bin/install.sh
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+
+ENV_NAME="cos487_env"
 
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
@@ -28,37 +36,45 @@ FRONTEND_PORT="${FRONTEND_PORT:-5173}"
 
 cd "$REPO_ROOT"
 
-cleanup() {
-    status=$?
-    echo
-    echo "Stopping application..."
-    
-    # Stop backend process and any children it spawned
-    if [[ -n "${BACKEND_PID:-}" ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
-        kill "$BACKEND_PID" 2>/dev/null || true
-    fi
-    # Stop frontend process and any children it spawned
-    if [[ -n "${FRONTEND_PID:-}" ]] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
-        kill "$FRONTEND_PID" 2>/dev/null || true
-    fi
+usage() {
+    cat <<'EOF'
+Usage: bash bin/run.sh (--prod | --eval) [extra arguments]
 
-    # Give processes a moment to exit cleanly
-    sleep 1
-
-    # Force anything still running
-    if [[ -n "${BACKEND_PID:-}" ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
-        kill -TERM "-$BACKEND_PID" 2>/dev/null || true
-    fi
-    if [[ -n "${FRONTEND_PID:-}" ]] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
-        kill -9 "$FRONTEND_PID" 2>/dev/null || true
-    fi
-    wait 2>/dev/null || true
-    exit "$status"
+  --prod        Start the production app: FastAPI backend and Vite frontend.
+  --eval        Run the evaluation pipeline (BM25 vs TF-IDF) over the qrels.
+                Extra arguments are forwarded to apps.evaluation.evaluate,
+                such as the path to an alternate config file.
+  -h, --help    Show this message.
+EOF
 }
-trap cleanup INT TERM EXIT
 
-# Find Conda and activate the project's environment.
-ENV_NAME="cos487_env"
+# Parse the mode, which is required and must come first.
+if [[ $# -eq 0 ]]; then
+    echo "Error: a mode is required." >&2
+    echo >&2
+    usage >&2
+    exit 1
+fi
+
+MODE="$1"
+shift
+
+case "$MODE" in
+    --prod|--eval)
+        ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        echo "Error: unknown mode '$MODE'." >&2
+        echo >&2
+        usage >&2
+        exit 1
+        ;;
+esac
+
+# Find Conda and check the project's environment.
 CONDA_EXE=""
 
 if command -v conda >/dev/null 2>&1; then
@@ -94,59 +110,127 @@ fi
 
 echo "Using Conda environment '$ENV_NAME'..."
 
-# Check required commands before starting anything.
 "$CONDA_EXE" run -n "$ENV_NAME" python --version >/dev/null 2>&1 || {
     echo "Error: Python was not found on PATH."
     exit 1
 }
-command -v npm >/dev/null 2>&1 || {
-    echo "Error: npm was not found on PATH."
-    exit 1
-}
 
-# Verify that dependencies have been installed.
-"$CONDA_EXE" run -n "$ENV_NAME" python -c "import fastapi, uvicorn" >/dev/null 2>&1 || {
-    echo "Error: Python dependencies are not installed."
-    echo "Run: python -m pip install -r requirements.txt"
-    exit 1
-}
+cleanup() {
+    status=$?
+    echo
+    echo "Stopping application..."
 
-if [[ ! -d "apps/prod/frontend/node_modules" ]]; then
-    echo "Error: Frontend dependencies are not installed."
-    echo "Run: (cd apps/prod/frontend && npm install)"
-    exit 1
-fi
-
-echo "Repository: $REPO_ROOT"
-echo "Backend:    http://${BACKEND_HOST}:${BACKEND_PORT}"
-echo "Frontend:   http://${FRONTEND_HOST}:${FRONTEND_PORT}"
-echo
-
-echo "Starting backend..."
-"$CONDA_EXE" run -n "$ENV_NAME" uvicorn apps.prod.backend.main:app --reload --port "$BACKEND_PORT" &
-BACKEND_PID=$!
-
-echo "Starting frontend..."
-(
-    cd "$REPO_ROOT/apps/prod/frontend"
-    "$CONDA_EXE" run -n "$ENV_NAME" npm run dev
-) &
-FRONTEND_PID=$!
-echo
-echo "Application is running."
-echo "Open: http://${FRONTEND_HOST}:${FRONTEND_PORT}"
-echo "Press Ctrl+C to stop both services."
-echo
-
-# Keep this script alive while either service is running.
-while true; do
-    if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
-        echo "Error: Backend process exited."
-        exit 1
+    # Stop backend process and any children it spawned
+    if [[ -n "${BACKEND_PID:-}" ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+        kill "$BACKEND_PID" 2>/dev/null || true
     fi
-    if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
-        echo "Error: Frontend process exited."
-        exit 1
+    # Stop frontend process and any children it spawned
+    if [[ -n "${FRONTEND_PID:-}" ]] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
+        kill "$FRONTEND_PID" 2>/dev/null || true
     fi
+
+    # Give processes a moment to exit cleanly
     sleep 1
-done
+
+    # Force anything still running
+    if [[ -n "${BACKEND_PID:-}" ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+        kill -TERM "-$BACKEND_PID" 2>/dev/null || true
+    fi
+    if [[ -n "${FRONTEND_PID:-}" ]] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
+        kill -9 "$FRONTEND_PID" 2>/dev/null || true
+    fi
+    wait 2>/dev/null || true
+    exit "$status"
+}
+
+run_prod() {
+    command -v npm >/dev/null 2>&1 || {
+        echo "Error: npm was not found on PATH."
+        exit 1
+    }
+
+    # Verify that dependencies have been installed.
+    "$CONDA_EXE" run -n "$ENV_NAME" python -c "import fastapi, uvicorn" >/dev/null 2>&1 || {
+        echo "Error: Python dependencies are not installed."
+        echo "Run: python -m pip install -r requirements.txt"
+        exit 1
+    }
+
+    if [[ ! -d "apps/prod/frontend/node_modules" ]]; then
+        echo "Error: Frontend dependencies are not installed."
+        echo "Run: (cd apps/prod/frontend && npm install)"
+        exit 1
+    fi
+
+    # Only the production app leaves background services to clean up.
+    trap cleanup INT TERM EXIT
+
+    echo "Repository: $REPO_ROOT"
+    echo "Backend:    http://${BACKEND_HOST}:${BACKEND_PORT}"
+    echo "Frontend:   http://${FRONTEND_HOST}:${FRONTEND_PORT}"
+    echo
+
+    echo "Starting backend..."
+    "$CONDA_EXE" run -n "$ENV_NAME" uvicorn apps.prod.backend.main:app --reload --port "$BACKEND_PORT" &
+    BACKEND_PID=$!
+
+    echo "Starting frontend..."
+    (
+        cd "$REPO_ROOT/apps/prod/frontend"
+        "$CONDA_EXE" run -n "$ENV_NAME" npm run dev
+    ) &
+    FRONTEND_PID=$!
+    echo
+    echo "Application is running."
+    echo "Open: http://${FRONTEND_HOST}:${FRONTEND_PORT}"
+    echo "Press Ctrl+C to stop both services."
+    echo
+
+    # Keep this script alive while either service is running.
+    while true; do
+        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            echo "Error: Backend process exited."
+            exit 1
+        fi
+        if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+            echo "Error: Frontend process exited."
+            exit 1
+        fi
+        sleep 1
+    done
+}
+
+run_eval() {
+    # Verify that dependencies have been installed.
+    "$CONDA_EXE" run -n "$ENV_NAME" python -c "import ranx, yaml" >/dev/null 2>&1 || {
+        echo "Error: Evaluation dependencies are not installed."
+        echo "Run: python -m pip install -r requirements.txt"
+        exit 1
+    }
+
+    if [[ ! -d "data/qrels" ]]; then
+        echo "Error: No relevance judgments found at data/qrels/."
+        echo "Download the course data files first (see the README)."
+        exit 1
+    fi
+
+    echo "Repository: $REPO_ROOT"
+    echo "Settings:   apps/evaluation/config.yaml"
+    echo
+
+    echo "Running evaluation..."
+    echo
+
+    # --no-capture-output so retrieval progress appears as it happens.
+    "$CONDA_EXE" run --no-capture-output -n "$ENV_NAME" \
+        python -m apps.evaluation.evaluate "$@"
+}
+
+case "$MODE" in
+    --prod)
+        run_prod
+        ;;
+    --eval)
+        run_eval "$@"
+        ;;
+esac
