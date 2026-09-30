@@ -6,10 +6,16 @@
 # e.g. TheSearchParty_paper_bm25_study.tsv
 team_name: TheSearchParty
 
-# Which query file / qrel set to use.
-# Allowed values: study | test
-# Note: only "study" has qrels under data/qrels/ right now.
-set: study
+# Query sets to retrieve, in order. Each entry names a query file under data/.
+#   name:  study | test
+#   score: true measures that set against its qrels and writes metrics.
+#          false writes TREC runs only. A missing qrel file is an error when
+#          score is true, so do not turn scoring off to hide a missing file.
+sets:
+  - name: study
+    score: true
+  - name: test
+    score: false
 
 # Index levels to evaluate (one or both).
 # Allowed values per item: paper | paragraph

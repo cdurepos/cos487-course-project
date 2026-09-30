@@ -1,6 +1,6 @@
 # Evaluation
 
-Compares BM25 and TF-IDF on the Study qrels using [ranx](https://github.com/AmenRa/ranx), and writes TREC run files you can inspect later.
+Runs the retrieval systems on every query set in `config.yaml`. Each set writes TREC run files. Sets with `score: true` are measured against qrels using [ranx](https://github.com/AmenRa/ranx). Sets with `score: false` are not.
 
 ## Run
 
@@ -11,8 +11,9 @@ pip install -r requirements.txt
 python -m apps.evaluation.evaluate
 ```
 
-All settings, including the team name used in output filenames, are in `config.yaml`.
-Edit that file, then re-run.
+All settings, including which sets to score and the team name used in output filenames, are in `config.yaml`. Edit that file, then re-run.
+
+The committed config retrieves Study and Test. Study is scored. Test writes runs only, because that set has no qrels. A missing qrel file is an error when `score` is true.
 
 ## Metrics
 
@@ -39,9 +40,9 @@ Each pass also runs a paired significance test between BM25 and TF/IDF.
 
 | Output | Location |
 |--------|----------|
-| TREC runs | `data/runs/<team>_<level>_<method>_study.tsv` |
-| Metric summary | `data/evaluation/<level>.json` |
-| Significance report | `data/evaluation/<level>_significance.json` |
+| TREC runs | `data/runs/<team>_<level>_<method>_<set>.tsv` |
+| Metric summary | `data/evaluation/<set>_<level>.json` |
+| Significance report | `data/evaluation/<set>_<level>_significance.json` |
 
 Runs use the standard 6-column TREC format: `qid Q0 docid rank score run_tag`.
 
@@ -49,4 +50,4 @@ Stemming is the default. Setting `stem: false` writes `_no-stem` files.
 
 ## Quick smoke test
 
-In `config.yaml`, set `limit: 10`, run once, then set `limit` back to `null` for the full Study set.
+In `config.yaml`, set `limit: 10`, run once, then set `limit` back to `null`. The limit applies to every set.
