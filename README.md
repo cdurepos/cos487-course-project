@@ -37,7 +37,8 @@ Users must download COS487 Information Retrieval course data files. For installa
 data/
 ├── JSON Files/     Unzipped data corpus
 ├── qrels/          QREL files
-└── Study.json      Query file
+├── Study.json
+└── Test.json
 ```
 
 ### Quick Run
@@ -61,7 +62,7 @@ To run the research pipeline:
 bash bin/run.sh --eval
 ```
 
-Edit `apps/evaluation/config.yaml` to change metrics, levels, stemming.
+Edit `apps/evaluation/config.yaml` to change query sets, metrics, levels, and stemming.
 See `apps/evaluation/README.md` for more details.
 
 ### Manual Run

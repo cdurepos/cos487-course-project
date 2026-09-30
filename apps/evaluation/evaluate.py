@@ -1,8 +1,8 @@
 """
-Evaluate BM25 vs TF-IDF against the course qrels using ranx.
+Evaluate retrieval systems on the query sets listed in config.yaml.
 
-Settings live in config.yaml next to this module. Writes TREC run files under
-data/runs/, then prints and saves metric scores.
+Every set writes TREC run files under data/runs/. Sets with score: true are
+also measured against qrels with ranx; sets with score: false are not.
 
 Run from the repository root:
 
@@ -56,9 +56,7 @@ def load_config(path: Path) -> dict:
     except KeyError as err:
         raise KeyError(f"'team_name' is missing from {path}") from err
 
-    set_name = str(cfg.get("set", "study")).lower()
-    if set_name not in QUERY_FILES:
-        raise ValueError(f"set must be one of {sorted(QUERY_FILES)}, got {set_name!r}")
+    sets = parse_sets(cfg.get("sets"))
 
     levels = cfg.get("levels") or ["paper", "paragraph"]
     if isinstance(levels, str):
@@ -116,7 +114,7 @@ def load_config(path: Path) -> dict:
 
     return {
         "team_name": team_name,
-        "set": set_name,
+        "sets": sets,
         "levels": levels,
         "methods": methods,
         "k": k,
@@ -127,6 +125,58 @@ def load_config(path: Path) -> dict:
         "stat_test": stat_test,
         "max_p": max_p,
     }
+
+
+def parse_sets(raw) -> list[dict]:
+    """Config entries of the form {name, score}."""
+    if not isinstance(raw, list) or not raw:
+        raise ValueError(
+            "config must include a non-empty 'sets' list, for example:\n"
+            "sets:\n"
+            "  - name: study\n"
+            "    score: true"
+        )
+
+    sets: list[dict] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"each entry in 'sets' must be a mapping with name and score, got {item!r}"
+            )
+        name = str(item.get("name", "")).lower()
+        if name not in QUERY_FILES:
+            raise ValueError(
+                f"set name must be one of {sorted(QUERY_FILES)}, got {name!r}"
+            )
+        if name in seen:
+            raise ValueError(f"duplicate set {name!r} in 'sets'")
+        seen.add(name)
+        if not isinstance(item.get("score"), bool):
+            raise ValueError(
+                f"set {name!r} needs score: true or false, got {item.get('score')!r}"
+            )
+        sets.append({"name": name, "score": item["score"]})
+    return sets
+
+
+def qrel_path(set_name: str, level: str) -> Path:
+    return QRELS_DIR / f"{set_name.capitalize()}_{level}_qrel.tsv"
+
+
+def require_qrels(set_name: str, levels: list[str]) -> None:
+    """Fail before retrieval when a scored set is missing judgments."""
+    missing = [
+        qrel_path(set_name, level)
+        for level in levels
+        if not qrel_path(set_name, level).exists()
+    ]
+    if not missing:
+        return
+    listed = "\n".join(f"  {path}" for path in missing)
+    raise FileNotFoundError(
+        f"No qrels for set={set_name!r}, which has score: true:\n{listed}"
+    )
 
 
 def load_queries(set_name: str, limit: int | None = None) -> list[tuple[str, str]]:
@@ -152,8 +202,7 @@ def load_qrels(
     rel_lvl=1 counts Relevant and Partially Relevant; rel_lvl=2 counts only the
     Relevant (grade 2) judgments.
     """
-    name = f"{set_name.capitalize()}_{level}_qrel.tsv"
-    path = QRELS_DIR / name
+    path = qrel_path(set_name, level)
     if not path.exists():
         raise FileNotFoundError(
             f"No qrels for set={set_name!r} level={level!r} at {path}"
@@ -180,16 +229,17 @@ def trec_path(team: str, method: str, level: str, set_name: str, stem: bool) -> 
     return RUNS_DIR / f"{run_tag(team, method, level, set_name, stem)}.tsv"
 
 
-def output_stem(level: str, stem: bool) -> str:
-    return level if stem else f"{level}_no-stem"
+def output_stem(set_name: str, level: str, stem: bool) -> str:
+    name = f"{set_name}_{level}"
+    return name if stem else f"{name}_no-stem"
 
 
-def metrics_path(level: str, stem: bool) -> Path:
-    return METRICS_DIR / f"{output_stem(level, stem)}.json"
+def metrics_path(set_name: str, level: str, stem: bool) -> Path:
+    return METRICS_DIR / f"{output_stem(set_name, level, stem)}.json"
 
 
-def significance_path(level: str, stem: bool) -> Path:
-    return METRICS_DIR / f"{output_stem(level, stem)}_significance.json"
+def significance_path(set_name: str, level: str, stem: bool) -> Path:
+    return METRICS_DIR / f"{output_stem(set_name, level, stem)}_significance.json"
 
 
 def build_run(
@@ -292,15 +342,15 @@ def evaluate_level(
     methods: list[str],
     stem: bool,
     k: int,
+    score: bool,
     metrics: list[str],
     strict_metrics: list[str],
     stat_test: str,
     max_p: float,
 ) -> dict:
-    print(f"\n=== {set_name} / {level} (stem={stem}, k={k}) ===", flush=True)
+    print(f"\n=== {set_name} / {level} (stem={stem}, k={k}, score={score}) ===", flush=True)
 
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    METRICS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Retrieval is the slow part, so each run is built once and scored twice.
     runs: list[Run] = []
@@ -315,6 +365,22 @@ def evaluate_level(
         # on run.name, which reads better as just the method.
         run.name = method
         runs.append(run)
+
+    trec_runs = {
+        method: str(trec_path(team, method, level, set_name, stem).relative_to(ROOT))
+        for method in methods
+    }
+    if not score:
+        print("  metrics skipped (score: false)", flush=True)
+        return {
+            "set": set_name,
+            "level": level,
+            "stem": stem,
+            "k": k,
+            "trec_runs": trec_runs,
+        }
+
+    METRICS_DIR.mkdir(parents=True, exist_ok=True)
 
     query_ids = {qid for qid, _ in queries}
     metric_passes: dict[str, dict] = {}
@@ -346,17 +412,14 @@ def evaluate_level(
     summary = {
         **context,
         "relevance_passes": metric_passes,
-        "trec_runs": {
-            method: str(trec_path(team, method, level, set_name, stem).relative_to(ROOT))
-            for method in methods
-        },
+        "trec_runs": trec_runs,
     }
     if significance_passes:
         summary["significance_file"] = str(
-            significance_path(level, stem).relative_to(ROOT)
+            significance_path(set_name, level, stem).relative_to(ROOT)
         )
 
-    out = metrics_path(level, stem)
+    out = metrics_path(set_name, level, stem)
     out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(f"\nSaved metric summary → {out.relative_to(ROOT)}", flush=True)
 
@@ -367,7 +430,7 @@ def evaluate_level(
             "max_p": max_p,
             "relevance_passes": significance_passes,
         }
-        out = significance_path(level, stem)
+        out = significance_path(set_name, level, stem)
         out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(f"Saved significance report → {out.relative_to(ROOT)}", flush=True)
 
@@ -383,33 +446,34 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(config_path)
     print(f"Loaded config from {config_path.relative_to(ROOT) if ROOT in config_path.parents else config_path}")
 
-    if cfg["set"] != "study":
-        qrel_probe = QRELS_DIR / f"{cfg['set'].capitalize()}_paper_qrel.tsv"
-        if not qrel_probe.exists():
-            print(
-                f"No qrels under {QRELS_DIR} for set={cfg['set']!r}. "
-                "Only the Study set is currently labeled.",
-                file=sys.stderr,
+    # Check every query file, and qrels for scored sets, before the slow retrieval.
+    for job in cfg["sets"]:
+        if job["score"]:
+            require_qrels(job["name"], cfg["levels"])
+        query_path = QUERY_FILES[job["name"]]
+        if not query_path.exists():
+            raise FileNotFoundError(f"Query file not found: {query_path}")
+
+    for job in cfg["sets"]:
+        set_name = job["name"]
+        queries = load_queries(set_name, cfg["limit"])
+        print(f"Loaded {len(queries)} queries from {QUERY_FILES[set_name].name}")
+
+        for level in cfg["levels"]:
+            evaluate_level(
+                team=cfg["team_name"],
+                set_name=set_name,
+                level=level,
+                queries=queries,
+                methods=cfg["methods"],
+                stem=cfg["stem"],
+                k=cfg["k"],
+                score=job["score"],
+                metrics=cfg["metrics"],
+                strict_metrics=cfg["strict_metrics"],
+                stat_test=cfg["stat_test"],
+                max_p=cfg["max_p"],
             )
-            return 1
-
-    queries = load_queries(cfg["set"], cfg["limit"])
-    print(f"Loaded {len(queries)} queries from {QUERY_FILES[cfg['set']].name}")
-
-    for level in cfg["levels"]:
-        evaluate_level(
-            team=cfg["team_name"],
-            set_name=cfg["set"],
-            level=level,
-            queries=queries,
-            methods=cfg["methods"],
-            stem=cfg["stem"],
-            k=cfg["k"],
-            metrics=cfg["metrics"],
-            strict_metrics=cfg["strict_metrics"],
-            stat_test=cfg["stat_test"],
-            max_p=cfg["max_p"],
-        )
 
     return 0
 

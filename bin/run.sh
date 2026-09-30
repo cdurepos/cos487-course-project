@@ -12,10 +12,10 @@ set -m
 # --prod starts the FastAPI backend on port 8000 and the Vite/React frontend on
 # port 5173. The frontend proxies /search to the backend.
 #
-# --eval evaluates BM25 against TF-IDF over the course qrels, writing TREC runs
-# and metric summaries under data/. Settings come from
-# apps/evaluation/config.yaml; any extra arguments are passed straight through to
-# the evaluation script, so an alternate config file can be used:
+# --eval runs the query sets in apps/evaluation/config.yaml. Each set writes
+# TREC runs under data/runs/. Sets with score: true are also measured against
+# qrels, and those summaries land under data/evaluation/. Extra arguments are
+# passed through to the evaluation script, so an alternate config can be used:
 #
 #   bash bin/run.sh --eval path/to/other-config.yaml
 #
@@ -41,7 +41,7 @@ usage() {
 Usage: bash bin/run.sh (--prod | --eval) [extra arguments]
 
   --prod        Start the production app: FastAPI backend and Vite frontend.
-  --eval        Run the evaluation pipeline (BM25 vs TF-IDF) over the qrels.
+  --eval        Run the evaluation pipeline from apps/evaluation/config.yaml.
                 Extra arguments are forwarded to apps.evaluation.evaluate,
                 such as the path to an alternate config file.
   -h, --help    Show this message.
