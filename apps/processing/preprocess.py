@@ -69,11 +69,6 @@ import json
 import os
 import re
 
-# Team name. The project requires result files to be named exactly
-# teamName_paper_bm25_study.tsv and so on, and the grading scripts are
-# automated, so this is kept here for the model scripts to import rather than
-# being retyped in each one.
-TEAM_NAME = "TheSearchParty"
 
 # Folders. Every input (the paper JSON files and the Study/Test/Train query
 # files) lives under data/, and every generated file is written under

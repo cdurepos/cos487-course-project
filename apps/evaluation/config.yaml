@@ -1,6 +1,11 @@
 # Evaluation settings for `python -m apps.evaluation.evaluate`
 # Edit this file, then re-run from the repository root.
 
+# Team name used in the submitted run filenames and TREC run tag:
+#   <team_name>_<level>_<method>_<set>.tsv
+# e.g. TheSearchParty_paper_bm25_study.tsv
+team_name: TheSearchParty
+
 # Which query file / qrel set to use.
 # Allowed values: study | test
 # Note: only "study" has qrels under data/qrels/ right now.
@@ -22,25 +27,41 @@ methods:
 # Allowed values: any integer >= 1 (typical: 10, 100)
 k: 100
 
-# Whether to use stemmed indexes.
+# Whether to use stemmed indexes. Setting this to false writes "_no-stem" ablation files.
 # Allowed values: true | false
-stem: false
+stem: true
 
 # Cap how many queries to evaluate.
 # Allowed values: null (all queries) | integer >= 1 (e.g. 10 for a smoke test)
 limit: null
 
-# Metrics to compute with ranx. Add or remove freely.
+# Metrics to compute with ranx, counting both Relevant (grade 2) and
+# Partially Relevant (grade 1) as relevant.
+#
 # Allowed values (common):
-#   map
+#   ndcg, ndcg@5, ndcg@10          graded, so unaffected by the pass below
 #   mrr
-#   ndcg@5, ndcg@10, ndcg@20
 #   precision@5, precision@10
-#   recall@10, recall@100
-#   hit_rate@10
-# See ranx docs for the full list.
+#   map, recall@10, recall@100, hit_rate@10
+# See the ranx docs for the full list.
 metrics:
-  - map
+  - ndcg
+  - ndcg@5
   - mrr
-  - ndcg@10
-  - recall@100
+  - precision@5
+  - precision@10
+
+# Metrics recomputed with only Relevant (grade 2) counting as relevant, via
+# qrels.set_relevance_level(rel_lvl=2). The course asks for both variants of
+# MRR and Precision@5; leave this empty to skip the second pass.
+# Allowed values: same names as `metrics` above.
+strict_metrics:
+  - mrr
+  - precision@5
+
+# Paired significance test between each pair of methods, reported per metric as
+# a p-value plus which method is better (or none, when the gap is not significant).
+# Allowed values for stat_test: student | fisher
+# Allowed values for max_p: any float between 0 and 1 (typical: 0.05, 0.01)
+stat_test: student
+max_p: 0.05

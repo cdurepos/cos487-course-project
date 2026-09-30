@@ -89,5 +89,15 @@ pip install -r requirements.txt
 python -m apps.evaluation.evaluate
 ```
 
-Edit the YAML to change metrics, levels, stemming, or set `limit: 10` for a smoke test, then re-run.
-See `apps/evaluation/README.md` for details.
+Runs use stemmed indexes by default. Default metrics output are selected as per course requirements.
+
+Outputs:
+
+```text
+data/runs/             TREC runs, e.g. TheSearchParty_paper_bm25_study.tsv
+data/evaluation/       Metric summaries: paper.json, paragraph.json
+                       Significance reports: paper_significance.json, …
+```
+
+Edit the YAML to change metrics, levels, stemming.
+See `apps/evaluation/README.md` for more details.
