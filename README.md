@@ -31,8 +31,6 @@ apps/
 
 ## Use Guide
 
-Instructions to run the production app.
-
 ### Data Setup
 Users must download COS487 Information Retrieval course data files. For installation, ~9GB of disk space is required. Arrange data files as specified below.
 ```text
@@ -42,7 +40,7 @@ data/
 └── Study.json      Query file
 ```
 
-### Running the Application
+### Quick Run
 To launch this application on Linux or MacOS, first set up the data (as outlined above). Then, run the following commands in a bash terminal from the repository root. By default, the backend runs on `localhost:8000` and the frontend runs on `localhost:5173`.
 
 To set up environment and install dependencies:
@@ -51,17 +49,32 @@ To set up environment and install dependencies:
 bash bin/install.sh
 ```
 
-To launch the application:
+`bin/run.sh` takes the mode to run as its first argument. To launch the search interface:
 
 ```bash
-bash bin/run.sh
+bash bin/run.sh --prod
 ```
 
-#### Or to set up manually
+To run the research pipeline:
+
+```bash
+bash bin/run.sh --eval
+```
+
+Edit `apps/evaluation/config.yaml` to change metrics, levels, stemming.
+See `apps/evaluation/README.md` for more details.
+
+### Manual Run
 Install Python dependencies once from the repository root:
 
 ```bash
 pip install -r requirements.txt
+```
+
+##### Environment Build
+```bash
+python -m apps.processing.preprocess
+python -m apps.retrieval.index
 ```
 
 ##### Backend
@@ -80,24 +93,9 @@ npm install
 npm run dev
 ```
 
-## Evaluation (BM25 vs TF-IDF)
-Uses the Study qrels in `data/qrels/` and the [ranx](https://github.com/AmenRa/ranx) library.
-Settings live in `apps/evaluation/config.yaml`.
-
+##### Evaluation
 ```bash
-pip install -r requirements.txt
 python -m apps.evaluation.evaluate
 ```
 
-Runs use stemmed indexes by default. Default metrics output are selected as per course requirements.
 
-Outputs:
-
-```text
-data/runs/             TREC runs, e.g. TheSearchParty_paper_bm25_study.tsv
-data/evaluation/       Metric summaries: paper.json, paragraph.json
-                       Significance reports: paper_significance.json, …
-```
-
-Edit the YAML to change metrics, levels, stemming.
-See `apps/evaluation/README.md` for more details.

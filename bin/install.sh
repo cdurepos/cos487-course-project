@@ -28,7 +28,10 @@ set -euo pipefail
 #   conda activate cos487_env
 #
 # The application can then be started with:
-#   ./bin/run.sh
+#   bash bin/run.sh --prod
+#
+# Or the evaluation pipeline can be run with:
+#   bash bin/run.sh --eval
 
 ENV_NAME="cos487_env"
 PYTHON_VERSION="3.12"
@@ -250,3 +253,9 @@ echo "    $ENV_NAME"
 echo
 echo "To activate it later:"
 echo "    conda activate $ENV_NAME"
+echo
+echo "To start the search interface:"
+echo "    bash bin/run.sh --prod"
+echo
+echo "To run the evaluation pipeline:"
+echo "    bash bin/run.sh --eval"
