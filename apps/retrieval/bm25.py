@@ -1,6 +1,7 @@
 """
 Contains the BM25 retrieval system
 Caches indexes, so that retrieval can be done from multiple indexes without having to reload them every time.
+Uses best parameters for each level and stemming option by default.
 
 Includes the retrieve(query, level, stem, k, k_1, b) function to retrieve documents for a given query using the BM25 algorithm.
 To create a REPL command-line interface, run this file directly from the root with the command:
@@ -11,6 +12,34 @@ import math
 
 from apps.processing.preprocess import preprocess
 import apps.retrieval.index as indexer
+
+
+PARAMS = {
+    "paragraph": {
+        "stemmed": {
+            "k_1": 0.5,
+            "b": 0.75
+        },
+        "unstemmed": {
+            "k_1": 0.5,
+            "b": 0.75
+        }
+    },
+    "paper": {
+        "stemmed": {
+            "k_1": 2.0,
+            "b": 0.5
+        },
+        "unstemmed": {
+            "k_1": 2.0,
+            "b": 0.75
+        }
+    },
+    "default": {
+        "k_1": 1.2,
+        "b": 0.75
+    }
+}
 
 
 indexes = {}
@@ -36,7 +65,7 @@ def load_index(level: str, stem: bool) -> dict:
     return indexes[id]
 
 
-def retrieve(query: str, level: str, stem: bool, k: int, k_1: float = 1.2, b: float = 0.75) -> dict:
+def retrieve(query: str, level: str, stem: bool, k: int, k_1: float = None, b: float = None) -> dict:
     """Retrieves documents that match the given query
     Returns a dictionary with the top-k retrieval results, sorted descending by score
 
@@ -45,12 +74,23 @@ def retrieve(query: str, level: str, stem: bool, k: int, k_1: float = 1.2, b: fl
         level (str): The level of the index to search. Can be either "paragraph" or "paper"
         stem (bool): Whether to use stemming or not
         k (int): The number of results to return
-        k_1 (float): The k1 parameter for the BM25 formula
-        b (float): The b parameter for the BM25 formula
+        k_1 (float, optional): The k_1 parameter for BM25. If None, the best parameter for the given level and stemming option will be used. Defaults to None.
+        b (float, optional): The b parameter for BM25. If None, the best parameter for the given level and stemming option will be used. Defaults to None.
 
     Returns:
         dict: A dictionary containing document IDs as keys with their scores as values
     """
+
+    if k_1 is None or b is None:
+        params = PARAMS.get(level, PARAMS["default"])
+        if stem:
+            params = params.get("stemmed", PARAMS["default"])
+        else:
+            params = params.get("unstemmed", PARAMS["default"])
+        if k_1 is None:
+            k_1 = params.get("k_1", PARAMS["default"]["k_1"])
+        if b is None:
+            b = params.get("b", PARAMS["default"]["b"])
 
     index = load_index(level, stem)
     docs = {}
