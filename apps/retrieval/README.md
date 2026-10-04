@@ -119,9 +119,25 @@ where:
 
 Results are returned as a dictionary mapping document IDs to BM25 scores, sorted in descending order of score.
 
+#### Tuning the Parameters
+
+The BM25 parameters `k_1` and `b` can be tuned using the provided grid-search script:
+
+```bash
+python -m apps.retrieval.bm25_grid_search
+```
+
+The grid search tests:
+
+* `k_1` values from `0.0` to `3.0` in increments of `0.25`
+* `b` values from `0.0` to `1.0` in increments of `0.25`
+
+It evaluates each combination for both paper- and paragraph-level retrieval, with and without stemming. Results are evaluated using nDCG, nDCG@5, MRR, Precision@5, and Precision@10, and are saved as CSV files under `data/evaluation/`.
+
+
 #### Using BM25
 
-To use the BM25 retrieval system interactively, run the following command from the repository root:
+To use the system interactively, run the following command from the repository root:
 
 ```bash
 python -m apps.retrieval.bm25_system

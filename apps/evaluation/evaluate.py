@@ -33,6 +33,7 @@ RUNS_DIR = DATA_DIR / "runs"
 METRICS_DIR = DATA_DIR / "evaluation"
 
 QUERY_FILES = {
+    "train": DATA_DIR / "Train.json",
     "study": DATA_DIR / "Study.json",
     "test": DATA_DIR / "Test.json",
 }

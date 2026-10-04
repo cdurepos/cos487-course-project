@@ -1,48 +1,44 @@
 """
 Contains the BM25 retrieval system
-Caches indexes, so that retrieval can be done from multiple indexes without having to reload them every time.
-Uses best parameters for each level and stemming option by default.
 
-Includes the retrieve(query, level, stem, k, k_1, b) function to retrieve documents for a given query using the BM25 algorithm.
-To create a REPL command-line interface, run this file directly from the root with the command:
+Caches indexes, so that retrieval can be done from multiple indexes without
+having to reload them every time.
+
+Uses BM25 parameters from config/bm25.yaml by default.
+
+To create a REPL command-line interface, run this file directly from the root:
+
     python -m apps.retrieval.bm25_system
 """
 
 import math
+from pathlib import Path
+import yaml
+import numpy as np
 
 from apps.processing.preprocess import preprocess
 import apps.retrieval.index as indexer
 
 
-PARAMS = {
-    "paragraph": {
-        "stemmed": {
-            "k_1": 0.5,
-            "b": 0.75
-        },
-        "unstemmed": {
-            "k_1": 0.5,
-            "b": 0.75
-        }
-    },
-    "paper": {
-        "stemmed": {
-            "k_1": 2.0,
-            "b": 0.5
-        },
-        "unstemmed": {
-            "k_1": 2.0,
-            "b": 0.75
-        }
-    },
-    "default": {
-        "k_1": 1.2,
-        "b": 0.75
-    }
-}
+CONFIG_PATH = Path(__file__).resolve().parent / "bm25_config.yaml"
 
+
+def load_config() -> dict:
+    """Load the BM25 configuration from YAML."""
+
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as file:
+            return yaml.safe_load(file) or {}
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"BM25 config file not found: {CONFIG_PATH}"
+        )
+
+
+CONFIG = load_config()
 
 indexes = {}
+
 
 index_id = lambda level, stem: f"{level}_{'un' if not stem else ''}stemmed"
 
@@ -65,6 +61,45 @@ def load_index(level: str, stem: bool) -> dict:
     return indexes[id]
 
 
+def get_bm25_params(
+    level: str,
+    stem: bool,
+    k_1: float | None = None,
+    b: float | None = None,
+) -> tuple[float, float]:
+    """Get BM25 parameters from the YAML config. Provided k_1 and b values override the config.
+    Falls back to the global default if a level/stemming-specific configuration is not present.
+
+    Args:
+        level (str): The level of the index to search. Can be either "paragraph" or "paper"
+        stem (bool): Whether to use stemming or not
+        k_1 (float, optional): The k_1 parameter for BM25. If None, the best parameter for the given level and stemming option will be used. Defaults to None.
+        b (float, optional): The b parameter for BM25. If None, the best parameter for the given level and stemming option will be used. Defaults to None.
+
+    Returns:
+        tuple[float, float]: A tuple containing the k_1 and b parameters for BM25.
+    """
+
+    level_config = CONFIG.get(level, {})
+    stem_key = "stemmed" if stem else "unstemmed"
+
+    params = level_config.get(
+        stem_key,
+        CONFIG.get("default", {}),
+    )
+    if k_1 is None:
+        k_1 = params.get(
+            "k_1",
+            CONFIG.get("default", {}).get("k_1", 1.2),
+        )
+    if b is None:
+        b = params.get(
+            "b",
+            CONFIG.get("default", {}).get("b", 0.75),
+        )
+    return float(k_1), float(b)
+
+
 def retrieve(query: str, level: str, stem: bool, k: int, k_1: float = None, b: float = None) -> dict:
     """Retrieves documents that match the given query
     Returns a dictionary with the top-k retrieval results, sorted descending by score
@@ -81,20 +116,34 @@ def retrieve(query: str, level: str, stem: bool, k: int, k_1: float = None, b: f
         dict: A dictionary containing document IDs as keys with their scores as values
     """
 
-    if k_1 is None or b is None:
-        params = PARAMS.get(level, PARAMS["default"])
-        if stem:
-            params = params.get("stemmed", PARAMS["default"])
-        else:
-            params = params.get("unstemmed", PARAMS["default"])
-        if k_1 is None:
-            k_1 = params.get("k_1", PARAMS["default"]["k_1"])
-        if b is None:
-            b = params.get("b", PARAMS["default"]["b"])
+    k_1, b = get_bm25_params(
+        level=level,
+        stem=stem,
+        k_1=k_1,
+        b=b,
+    )
 
     index = load_index(level, stem)
-    docs = {}
+    return retrieve_from_index(query, stem, index, k, k_1, b)
 
+
+def retrieve_from_index(query: str, stem: bool, index: dict, k: int, k_1: float, b: float) -> dict:
+    """
+    Retrieves documents that match the given query from the given index
+
+    Args:
+        query (str): The query to search for
+        stem (bool): Whether to use stemming or not
+        index (dict): The inverted index to search
+        k (int): The number of results to return
+        k_1 (float): The k_1 parameter for BM25
+        b (float): The b parameter for BM25
+    
+    Returns:
+        dict: A dictionary containing document IDs as keys with their scores as values
+    """
+
+    docs = {}
     average_doc_length = indexer.get_average_document_length(index)
     terms = preprocess(query, stem)
     for term in terms:
@@ -109,6 +158,156 @@ def retrieve(query: str, level: str, stem: bool, k: int, k_1: float = None, b: f
 
     return dict(sorted(docs.items(), key=lambda item: item[1], reverse=True)[:k])
 
+
+def prepare_query(
+    query: str,
+    stem: bool,
+    index: dict,
+) -> dict:
+    """
+    Precompute everything from a query that does not depend on k1/b
+
+    Args:
+        query: The query to prepare
+        stem: Whether to use stemming or not
+        index: The inverted index to use for retrieval
+
+    Returns:
+        dict: A dictionary containing the average document length and a list of postings for each term in the query. Each posting contains the document IDs, term frequencies, document lengths, and IDF for the term.
+    """
+
+    average_doc_length = indexer.get_average_document_length(index)
+    num_documents = indexer.get_num_documents(index)
+
+    terms = preprocess(query, stem)
+    postings = []
+
+    for term in terms:
+        tf_map = indexer.get_term_frequency(index, term)
+
+        if not tf_map:
+            continue
+
+        docs_with_term = len(tf_map)
+
+        idf = math.log(
+            (num_documents - docs_with_term + 0.5)
+            / (docs_with_term + 0.5)
+            + 1
+        )
+        doc_ids = list(tf_map.keys())
+        term_frequencies = np.asarray(
+            [tf_map[doc_id] for doc_id in doc_ids],
+            dtype=np.float64,
+        )
+        document_lengths = np.asarray(
+            [
+                indexer.get_document_length(index, doc_id)
+                for doc_id in doc_ids
+            ],
+            dtype=np.float64,
+        )
+        postings.append(
+            {
+                "doc_ids": doc_ids,
+                "tf": term_frequencies,
+                "doc_lengths": document_lengths,
+                "idf": idf,
+            }
+        )
+    return {
+        "average_doc_length": average_doc_length,
+        "postings": postings,
+    }
+
+
+def retrieve_prepared(
+    prepared_query: dict,
+    k: int,
+    k_1: float,
+    b: float,
+) -> dict:
+    """
+    Retrieve using a query prepared by prepare_query()
+
+    Args:
+        prepared_query: The query prepared by prepare_query()
+        k: The number of results to return
+        k_1: The k1 parameter for BM25
+        b: The b parameter for BM25
+    
+    Returns:
+        dict: A dictionary containing document IDs as keys with their scores as values
+    """
+
+    postings = prepared_query["postings"]
+    average_doc_length = prepared_query["average_doc_length"]
+
+    if not postings or average_doc_length <= 0:
+        return {}
+
+    scores = {}
+
+    for posting in postings:
+        doc_ids = posting["doc_ids"]
+        tf = posting["tf"]
+        doc_lengths = posting["doc_lengths"]
+        idf = posting["idf"]
+
+        denominator = (
+            tf
+            + k_1
+            * (
+                1.0
+                - b
+                + b * doc_lengths / average_doc_length
+            )
+        )
+        term_scores = (
+            idf
+            * (tf * (k_1 + 1.0))
+            / denominator
+        )
+        for doc_id, score in zip(doc_ids, term_scores):
+            scores[doc_id] = scores.get(doc_id, 0.0) + float(score)
+    return dict(
+        sorted(
+            scores.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:k]
+    )
+
+
+def prepare_queries(
+    queries: list[tuple[str, str]],
+    level: str,
+    stem: bool,
+) -> list[tuple[str, dict]]:
+    """
+    Prepare all queries for a particular index once.
+
+    Args:
+        queries: List of (query_id, query_text) tuples.
+        level: The level of the index to search. Can be either "paragraph" or "paper"
+        stem: Whether to use stemming or not
+
+    Returns:
+        List of (query_id, prepared_query) tuples.
+    """
+
+    index = load_index(level, stem)
+    return [
+        (
+            qid,
+            prepare_query(
+                query,
+                stem,
+                index,
+            ),
+        )
+        for qid, query in queries
+    ]
 
 def main():
     """REPL for using the retrieval system"""
@@ -145,4 +344,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
