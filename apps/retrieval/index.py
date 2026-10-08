@@ -50,6 +50,11 @@ def build_index(level: Literal["paragraph", "paper"], stem: bool, force_rebuild:
                 terms[token][docid] = 0
             terms[token][docid] += 1
 
+    num_docs = len(document_lengths)
+    avg_doc_len = sum(document_lengths.values()) / num_docs if num_docs > 0 else 0.0
+    index["num_docs"] = num_docs
+    index["avg_doc_len"] = avg_doc_len
+
     with open(index_path, "w", encoding="utf-8") as file:
         json.dump(index, file, indent=4)
     print(f"Built {level} index with{'out' if not stem else ''} stemming, saved to {index_path}")
@@ -115,7 +120,7 @@ def get_num_documents(index: dict) -> int:
         int: The number of documents in the index.
     """
 
-    return len(index["document_lengths"])
+    return index["num_docs"]
 
 
 def get_average_document_length(index: dict) -> float:
@@ -128,9 +133,7 @@ def get_average_document_length(index: dict) -> float:
         float: The average document length in the index.
     """
 
-    total_length = sum(index["document_lengths"].values())
-    num_documents = len(index["document_lengths"])
-    return total_length / num_documents if num_documents > 0 else 0.0
+    return index["avg_doc_len"]
 
 
 def main():
