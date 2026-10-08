@@ -35,7 +35,7 @@ from apps.evaluation.evaluate import (
 ROOT = Path(__file__).resolve().parents[2]
 
 LEVELS = [
-    # "paper",
+    "paper",
     "paragraph"
 ]
 
