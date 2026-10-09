@@ -1,6 +1,6 @@
 # Evaluation
 
-Runs the retrieval systems on every query set in `config.yaml`. Each set writes TREC run files. Sets with `score: true` are measured against qrels using [ranx](https://github.com/AmenRa/ranx). Sets with `score: false` are not.
+Runs the retrieval systems on every query set in `config.yaml`. Each set writes TREC run files. Sets with `metrics: true` are measured against qrels using [ranx](https://github.com/AmenRa/ranx) and record systems performance. Sets with `metrics: false` write runs only.
 
 ## Run
 
@@ -11,9 +11,9 @@ pip install -r requirements.txt
 python -m apps.evaluation.evaluate
 ```
 
-All settings, including which sets to score and the team name used in output filenames, are in `config.yaml`. Edit that file, then re-run.
+All settings, including which sets get metrics and the team name used in output filenames, are in `config.yaml`. Edit that file, then re-run.
 
-The committed config retrieves Study and Test. Study is scored. Test writes runs only, because that set has no qrels. A missing qrel file is an error when `score` is true.
+The committed config retrieves Study and Test. Study has `metrics: true`, including systems performance. Test writes runs only, for annotation or any other use of the ranked results. A missing qrel file is an error when `metrics` is true.
 
 ## Metrics
 
@@ -35,6 +35,18 @@ Each pass also runs a paired significance test between BM25 and TF/IDF.
   "mrr":  { "p": 0.0987,  "better": null,   "win_tie_loss": { "W": 4, "T": 6, "L": 2 } }
 }
 ```
+
+## Systems performance
+
+Each summary includes a `performance` object:
+
+| Field | Meaning |
+|-------|---------|
+| `index.bytes` | Size of the index file used for that level |
+| `latency_ms.<method>.mean` | Mean steady-state query time, in milliseconds |
+| `latency_ms.<method>.median` | Median steady-state query time, in milliseconds |
+
+Systems performance is recorded only for sets with `metrics: true`. In the committed config, that is Study. The first query for each method and index is left out of the mean and median. That call loads the index, and for TF-IDF it also builds document norms. `queries` is the number of timed queries; `warmup_excluded` is how many were left out.
 
 ## What you get
 

@@ -77,7 +77,23 @@ def load_index(level: Literal["paragraph", "paper"], stem: bool) -> dict:
         raise FileNotFoundError(f"Index file {index_path} does not exist. Please build the index first.")
     
     with open(index_path, "r", encoding="utf-8") as file:
-        return json.load(file)
+        index = json.load(file)
+    # Indexes built before these fields were written only have document_lengths
+    # and terms. Derive the missing stats on load so BM25 does not require a rebuild.
+    return ensure_index_stats(index)
+
+
+def ensure_index_stats(index: dict) -> dict:
+    """Fill num_docs and avg_doc_len when an older index file omitted them."""
+    if "num_docs" in index and "avg_doc_len" in index:
+        return index
+    lengths = index["document_lengths"]
+    if "num_docs" not in index:
+        index["num_docs"] = len(lengths)
+    if "avg_doc_len" not in index:
+        num_docs = index["num_docs"]
+        index["avg_doc_len"] = sum(lengths.values()) / num_docs if num_docs else 0.0
+    return index
 
 
 def get_term_frequency(index: dict, term: str) -> dict:
