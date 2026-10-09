@@ -36,6 +36,8 @@ Each pass also runs a paired significance test between BM25 and TF/IDF.
 }
 ```
 
+The same two passes are also saved per query, one row per query id, in `<set>_<level>_queries.json`. The summary keeps the means.
+
 ## Systems performance
 
 Each summary includes a `performance` object:
@@ -54,6 +56,7 @@ Systems performance is recorded only for sets with `metrics: true`. In the commi
 |--------|----------|
 | TREC runs | `data/runs/<team>_<level>_<method>_<set>.tsv` |
 | Metric summary | `data/evaluation/<set>_<level>.json` |
+| Per-query metrics | `data/evaluation/<set>_<level>_queries.json` |
 | Significance report | `data/evaluation/<set>_<level>_significance.json` |
 
 Runs use the standard 6-column TREC format: `qid Q0 docid rank score run_tag`.

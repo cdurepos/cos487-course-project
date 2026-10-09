@@ -294,6 +294,10 @@ def significance_path(set_name: str, level: str, stem: bool) -> Path:
     return METRICS_DIR / f"{output_stem(set_name, level, stem)}_significance.json"
 
 
+def queries_path(set_name: str, level: str, stem: bool) -> Path:
+    return METRICS_DIR / f"{output_stem(set_name, level, stem)}_queries.json"
+
+
 def build_run(
     team: str,
     method: str,
@@ -360,22 +364,65 @@ def format_metrics(scores: dict) -> str:
     return "  ".join(parts)
 
 
+def by_query(
+    per_method: dict[str, dict[str, dict[str, float]]],
+    query_ids: list[str],
+) -> dict[str, dict[str, dict[str, float]]]:
+    """One row per query: method, then metric.
+
+    Query order follows the query file. A query with no judgment is omitted,
+    because make_comparable drops it from the scored set.
+    """
+    rows: dict[str, dict[str, dict[str, float]]] = {}
+    for qid in query_ids:
+        row = {
+            method: {
+                metric: scores[qid]
+                for metric, scores in method_scores.items()
+                if qid in scores
+            }
+            for method, method_scores in per_method.items()
+        }
+        row = {method: scores for method, scores in row.items() if scores}
+        if row:
+            rows[qid] = row
+    return rows
+
+
 def score_pass(
     qrels: Qrels,
     runs: list[Run],
     metrics: list[str],
+    query_ids: list[str],
     label: str,
-) -> dict[str, dict]:
-    """Scores every run against one relevance level."""
+) -> tuple[dict[str, dict], dict[str, dict]]:
+    """Mean scores, plus the same metrics for each query."""
     print(f"\n-- {label} --", flush=True)
 
     per_method = {}
+    per_query: dict[str, dict[str, dict[str, float]]] = {}
     for run in runs:
-        scores = evaluate(qrels, run, metrics, make_comparable=True)
+        scores = evaluate(
+            qrels,
+            run,
+            metrics,
+            make_comparable=True,
+            save_results_in_run=True,
+        )
+        # A single metric comes back as a number. Two or more come back as a dict.
+        if not isinstance(scores, dict):
+            scores = {metrics[0]: scores}
         print(f"  {run.name}: {format_metrics(scores)}", flush=True)
         per_method[run.name] = {m: float(scores[m]) for m in metrics}
+        # Copy now. The next relevance pass scores this same run again and
+        # replaces the per-query numbers stored on it.
+        stored = dict(run.scores)
+        per_query[run.name] = {
+            metric: {qid: float(value) for qid, value in dict(stored[metric]).items()}
+            for metric in metrics
+        }
 
-    return per_method
+    return per_method, by_query(per_query, query_ids)
 
 
 def compare_pass(
@@ -493,8 +540,9 @@ def evaluate_level(
 
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
 
-    query_ids = {qid for qid, _ in queries}
+    query_ids = [qid for qid, _ in queries]
     metric_passes: dict[str, dict] = {}
+    query_passes: dict[str, dict] = {}
     significance_passes: dict[str, dict] = {}
 
     for key, rel_lvl, metric_names, label in (
@@ -503,9 +551,10 @@ def evaluate_level(
     ):
         if not metric_names:
             continue
-        qrels = load_qrels(set_name, level, query_ids, rel_lvl)
-        scores = score_pass(qrels, runs, metric_names, label)
+        qrels = load_qrels(set_name, level, set(query_ids), rel_lvl)
+        scores, per_query = score_pass(qrels, runs, metric_names, query_ids, label)
         metric_passes[key] = {"relevance_level": rel_lvl, "metrics": scores}
+        query_passes[key] = {"relevance_level": rel_lvl, "queries": per_query}
 
         if len(runs) >= 2:
             print(f"\n  significance (paired {stat_test} t-test, p < {max_p}):", flush=True)
@@ -516,19 +565,34 @@ def evaluate_level(
                 ),
             }
 
-    # Scores and significance go to separate files: the metrics summary is what
-    # gets read constantly, so it stays short. Systems numbers live on that
-    # summary too; there are only a few of them.
+    # Means stay in the summary. Per-query scores and significance each get
+    # their own file, so the summary stays short enough to read.
     summary = {
         **context,
         "relevance_passes": metric_passes,
     }
+    if query_passes:
+        summary["queries_file"] = str(
+            queries_path(set_name, level, stem).relative_to(ROOT)
+        )
     if significance_passes:
         summary["significance_file"] = str(
             significance_path(set_name, level, stem).relative_to(ROOT)
         )
 
     write_summary(metrics_path(set_name, level, stem), summary)
+
+    if query_passes:
+        report = {
+            "set": set_name,
+            "level": level,
+            "stem": stem,
+            "k": k,
+            "relevance_passes": query_passes,
+        }
+        out = queries_path(set_name, level, stem)
+        out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(f"Saved per-query metrics → {out.relative_to(ROOT)}", flush=True)
 
     if significance_passes:
         report = {
