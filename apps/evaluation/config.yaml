@@ -7,15 +7,16 @@
 team_name: TheSearchParty
 
 # Query sets to retrieve, in order. Each entry names a query file under data/.
-#   name:  study | test
-#   score: true measures that set against its qrels and writes metrics.
-#          false writes TREC runs only. A missing qrel file is an error when
-#          score is true, so do not turn scoring off to hide a missing file.
+#   name: study | test
+#   metrics: true measures that set against its qrels and writes metrics.
+#            false writes TREC runs only, for annotation or any other use of
+#            the ranked results. A missing qrel file is an error when metrics
+#            is true.
 sets:
   - name: study
-    score: true
+    metrics: true
   - name: test
-    score: false
+    metrics: false
 
 # Index levels to evaluate (one or both).
 # Allowed values per item: paper | paragraph

@@ -1,8 +1,9 @@
 """
 Evaluate retrieval systems on the query sets listed in config.yaml.
 
-Every set writes TREC run files under data/runs/. Sets with score: true are
-also measured against qrels with ranx; sets with score: false are not.
+Every set writes TREC run files under data/runs/. Sets with metrics: true are
+measured against qrels with ranx and record systems performance. Sets with
+metrics: false write runs only.
 
 Run from the repository root:
 
@@ -13,6 +14,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import json
+import statistics
 import sys
 import time
 from itertools import combinations
@@ -44,6 +46,55 @@ METHODS = {
 }
 
 STAT_TESTS = ("student", "fisher")
+INDEX_DIR = DATA_DIR / "indexes"
+
+# First retrieve() for a method on an index also loads that index. TF-IDF
+# additionally builds document norms on that call. Those costs are not query
+# latency, so the first query per (method, level, stem) stays out of the mean
+# and median. The set lives for the whole process: a later query set on the
+# same index includes every query.
+_warmed_indexes: set[tuple[str, str, bool]] = set()
+
+
+def index_file(level: str, stem: bool) -> Path:
+    stem_label = "stemmed" if stem else "unstemmed"
+    return INDEX_DIR / f"{level}_index_{stem_label}.json"
+
+
+def take_warmup(method: str, level: str, stem: bool) -> bool:
+    """True only for the first query on this method and index in this process."""
+    key = (method, level, stem)
+    if key in _warmed_indexes:
+        return False
+    _warmed_indexes.add(key)
+    return True
+
+
+def latency_summary(samples_ms: list[float], warmup_excluded: int) -> dict:
+    """Mean and median steady-state query time, in milliseconds."""
+    if not samples_ms:
+        return {
+            "queries": 0,
+            "warmup_excluded": warmup_excluded,
+            "mean": None,
+            "median": None,
+        }
+    return {
+        "queries": len(samples_ms),
+        "warmup_excluded": warmup_excluded,
+        "mean": round(statistics.mean(samples_ms), 3),
+        "median": round(statistics.median(samples_ms), 3),
+    }
+
+
+def index_on_disk(level: str, stem: bool) -> dict:
+    path = index_file(level, stem)
+    if not path.is_file():
+        raise FileNotFoundError(f"Index file not found: {path}")
+    return {
+        "path": str(path.relative_to(ROOT)),
+        "bytes": path.stat().st_size,
+    }
 
 
 def load_config(path: Path) -> dict:
@@ -129,13 +180,13 @@ def load_config(path: Path) -> dict:
 
 
 def parse_sets(raw) -> list[dict]:
-    """Config entries of the form {name, score}."""
+    """Config entries of the form {name, metrics}."""
     if not isinstance(raw, list) or not raw:
         raise ValueError(
             "config must include a non-empty 'sets' list, for example:\n"
             "sets:\n"
             "  - name: study\n"
-            "    score: true"
+            "    metrics: true"
         )
 
     sets: list[dict] = []
@@ -143,7 +194,7 @@ def parse_sets(raw) -> list[dict]:
     for item in raw:
         if not isinstance(item, dict):
             raise ValueError(
-                f"each entry in 'sets' must be a mapping with name and score, got {item!r}"
+                f"each entry in 'sets' must be a mapping with name and metrics, got {item!r}"
             )
         name = str(item.get("name", "")).lower()
         if name not in QUERY_FILES:
@@ -153,11 +204,11 @@ def parse_sets(raw) -> list[dict]:
         if name in seen:
             raise ValueError(f"duplicate set {name!r} in 'sets'")
         seen.add(name)
-        if not isinstance(item.get("score"), bool):
+        if not isinstance(item.get("metrics"), bool):
             raise ValueError(
-                f"set {name!r} needs score: true or false, got {item.get('score')!r}"
+                f"set {name!r} needs metrics: true or false, got {item.get('metrics')!r}"
             )
-        sets.append({"name": name, "score": item["score"]})
+        sets.append({"name": name, "metrics": item["metrics"]})
     return sets
 
 
@@ -166,7 +217,7 @@ def qrel_path(set_name: str, level: str) -> Path:
 
 
 def require_qrels(set_name: str, levels: list[str]) -> None:
-    """Fail before retrieval when a scored set is missing judgments."""
+    """Fail before retrieval when an evaluated set is missing judgments."""
     missing = [
         qrel_path(set_name, level)
         for level in levels
@@ -176,7 +227,7 @@ def require_qrels(set_name: str, levels: list[str]) -> None:
         return
     listed = "\n".join(f"  {path}" for path in missing)
     raise FileNotFoundError(
-        f"No qrels for set={set_name!r}, which has score: true:\n{listed}"
+        f"No qrels for set={set_name!r}, which has metrics: true:\n{listed}"
     )
 
 
@@ -243,6 +294,10 @@ def significance_path(set_name: str, level: str, stem: bool) -> Path:
     return METRICS_DIR / f"{output_stem(set_name, level, stem)}_significance.json"
 
 
+def queries_path(set_name: str, level: str, stem: bool) -> Path:
+    return METRICS_DIR / f"{output_stem(set_name, level, stem)}_queries.json"
+
+
 def build_run(
     team: str,
     method: str,
@@ -251,20 +306,57 @@ def build_run(
     set_name: str,
     stem: bool,
     k: int,
-) -> Run:
+    record_latency: bool = True,
+) -> tuple[Run, dict | None]:
     retrieve = METHODS[method]
     ranked: dict[str, dict[str, float]] = {}
+    latencies_ms: list[float] = []
+    warmup_excluded = 0
     total = len(queries)
     started = time.perf_counter()
 
     for i, (qid, text) in enumerate(queries, start=1):
+        query_started = time.perf_counter()
         hits = retrieve(text, level, stem, k)
+        if record_latency:
+            elapsed_ms = (time.perf_counter() - query_started) * 1000
+            # The first call on this index pays for loading it (and, for TF-IDF,
+            # building document norms). Leave that sample out of the average.
+            if take_warmup(method, level, stem):
+                warmup_excluded += 1
+            else:
+                latencies_ms.append(elapsed_ms)
         ranked[qid] = {doc_id: float(score) for doc_id, score in hits.items()}
         if i == 1 or i % 25 == 0 or i == total:
             elapsed = time.perf_counter() - started
             print(f"  [{method}/{level}] {i}/{total} queries ({elapsed:.1f}s)", flush=True)
 
-    return Run.from_dict(ranked, name=run_tag(team, method, level, set_name, stem))
+    run = Run.from_dict(ranked, name=run_tag(team, method, level, set_name, stem))
+    if not record_latency:
+        return run, None
+    return run, latency_summary(latencies_ms, warmup_excluded)
+
+
+def print_latency(method: str, level: str, stats: dict) -> None:
+    if not stats["queries"]:
+        print(
+            f"  [{method}/{level}] no steady-state queries "
+            f"(warmup excluded={stats['warmup_excluded']})",
+            flush=True,
+        )
+        return
+    print(
+        f"  [{method}/{level}] query latency "
+        f"mean={stats['mean']:.3f}ms median={stats['median']:.3f}ms "
+        f"(n={stats['queries']}, warmup excluded={stats['warmup_excluded']})",
+        flush=True,
+    )
+
+
+def write_summary(path: Path, summary: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    print(f"\nSaved metric summary → {path.relative_to(ROOT)}", flush=True)
 
 
 def format_metrics(scores: dict) -> str:
@@ -272,22 +364,65 @@ def format_metrics(scores: dict) -> str:
     return "  ".join(parts)
 
 
+def by_query(
+    per_method: dict[str, dict[str, dict[str, float]]],
+    query_ids: list[str],
+) -> dict[str, dict[str, dict[str, float]]]:
+    """One row per query: method, then metric.
+
+    Query order follows the query file. A query with no judgment is omitted,
+    because make_comparable drops it from the scored set.
+    """
+    rows: dict[str, dict[str, dict[str, float]]] = {}
+    for qid in query_ids:
+        row = {
+            method: {
+                metric: scores[qid]
+                for metric, scores in method_scores.items()
+                if qid in scores
+            }
+            for method, method_scores in per_method.items()
+        }
+        row = {method: scores for method, scores in row.items() if scores}
+        if row:
+            rows[qid] = row
+    return rows
+
+
 def score_pass(
     qrels: Qrels,
     runs: list[Run],
     metrics: list[str],
+    query_ids: list[str],
     label: str,
-) -> dict[str, dict]:
-    """Scores every run against one relevance level."""
+) -> tuple[dict[str, dict], dict[str, dict]]:
+    """Mean scores, plus the same metrics for each query."""
     print(f"\n-- {label} --", flush=True)
 
     per_method = {}
+    per_query: dict[str, dict[str, dict[str, float]]] = {}
     for run in runs:
-        scores = evaluate(qrels, run, metrics, make_comparable=True)
+        scores = evaluate(
+            qrels,
+            run,
+            metrics,
+            make_comparable=True,
+            save_results_in_run=True,
+        )
+        # A single metric comes back as a number. Two or more come back as a dict.
+        if not isinstance(scores, dict):
+            scores = {metrics[0]: scores}
         print(f"  {run.name}: {format_metrics(scores)}", flush=True)
         per_method[run.name] = {m: float(scores[m]) for m in metrics}
+        # Copy now. The next relevance pass scores this same run again and
+        # replaces the per-query numbers stored on it.
+        stored = dict(run.scores)
+        per_query[run.name] = {
+            metric: {qid: float(value) for qid, value in dict(stored[metric]).items()}
+            for metric in metrics
+        }
 
-    return per_method
+    return per_method, by_query(per_query, query_ids)
 
 
 def compare_pass(
@@ -343,24 +478,30 @@ def evaluate_level(
     methods: list[str],
     stem: bool,
     k: int,
-    score: bool,
+    evaluate: bool,
     metrics: list[str],
     strict_metrics: list[str],
     stat_test: str,
     max_p: float,
 ) -> dict:
-    print(f"\n=== {set_name} / {level} (stem={stem}, k={k}, score={score}) ===", flush=True)
+    print(f"\n=== {set_name} / {level} (stem={stem}, k={k}, metrics={evaluate}) ===", flush=True)
 
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Retrieval is the slow part, so each run is built once and scored twice.
     runs: list[Run] = []
+    latency_ms: dict[str, dict] = {}
     for method in methods:
         print(f"Retrieving with {method}…", flush=True)
-        run = build_run(team, method, queries, level, set_name, stem, k)
+        run, latency = build_run(
+            team, method, queries, level, set_name, stem, k, record_latency=evaluate
+        )
         path = trec_path(team, method, level, set_name, stem)
         run.save(str(path), kind="trec")
         print(f"  wrote TREC run → {path.relative_to(ROOT)}", flush=True)
+        if latency is not None:
+            latency_ms[method] = latency
+            print_latency(method, level, latency)
 
         # The saved file keeps the full run tag; the score tables below are keyed
         # on run.name, which reads better as just the method.
@@ -371,8 +512,8 @@ def evaluate_level(
         method: str(trec_path(team, method, level, set_name, stem).relative_to(ROOT))
         for method in methods
     }
-    if not score:
-        print("  metrics skipped (score: false)", flush=True)
+    if not evaluate:
+        print("  metrics skipped (metrics: false)", flush=True)
         return {
             "set": set_name,
             "level": level,
@@ -381,10 +522,27 @@ def evaluate_level(
             "trec_runs": trec_runs,
         }
 
+    performance = {
+        "index": index_on_disk(level, stem),
+        "latency_ms": latency_ms,
+    }
+    index = performance["index"]
+    print(f"  index {index['path']} ({index['bytes']} bytes)", flush=True)
+
+    context = {
+        "set": set_name,
+        "level": level,
+        "stem": stem,
+        "k": k,
+        "performance": performance,
+        "trec_runs": trec_runs,
+    }
+
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
 
-    query_ids = {qid for qid, _ in queries}
+    query_ids = [qid for qid, _ in queries]
     metric_passes: dict[str, dict] = {}
+    query_passes: dict[str, dict] = {}
     significance_passes: dict[str, dict] = {}
 
     for key, rel_lvl, metric_names, label in (
@@ -393,9 +551,10 @@ def evaluate_level(
     ):
         if not metric_names:
             continue
-        qrels = load_qrels(set_name, level, query_ids, rel_lvl)
-        scores = score_pass(qrels, runs, metric_names, label)
+        qrels = load_qrels(set_name, level, set(query_ids), rel_lvl)
+        scores, per_query = score_pass(qrels, runs, metric_names, query_ids, label)
         metric_passes[key] = {"relevance_level": rel_lvl, "metrics": scores}
+        query_passes[key] = {"relevance_level": rel_lvl, "queries": per_query}
 
         if len(runs) >= 2:
             print(f"\n  significance (paired {stat_test} t-test, p < {max_p}):", flush=True)
@@ -406,27 +565,41 @@ def evaluate_level(
                 ),
             }
 
-    context = {"set": set_name, "level": level, "stem": stem, "k": k}
-
-    # Scores and significance go to separate files: the metrics summary is what
-    # gets read constantly, so it stays short.
+    # Means stay in the summary. Per-query scores and significance each get
+    # their own file, so the summary stays short enough to read.
     summary = {
         **context,
         "relevance_passes": metric_passes,
-        "trec_runs": trec_runs,
     }
+    if query_passes:
+        summary["queries_file"] = str(
+            queries_path(set_name, level, stem).relative_to(ROOT)
+        )
     if significance_passes:
         summary["significance_file"] = str(
             significance_path(set_name, level, stem).relative_to(ROOT)
         )
 
-    out = metrics_path(set_name, level, stem)
-    out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    print(f"\nSaved metric summary → {out.relative_to(ROOT)}", flush=True)
+    write_summary(metrics_path(set_name, level, stem), summary)
+
+    if query_passes:
+        report = {
+            "set": set_name,
+            "level": level,
+            "stem": stem,
+            "k": k,
+            "relevance_passes": query_passes,
+        }
+        out = queries_path(set_name, level, stem)
+        out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(f"Saved per-query metrics → {out.relative_to(ROOT)}", flush=True)
 
     if significance_passes:
         report = {
-            **context,
+            "set": set_name,
+            "level": level,
+            "stem": stem,
+            "k": k,
             "stat_test": stat_test,
             "max_p": max_p,
             "relevance_passes": significance_passes,
@@ -444,12 +617,13 @@ def main(argv: list[str] | None = None) -> int:
     if not config_path.is_absolute():
         config_path = (Path.cwd() / config_path).resolve()
 
+    _warmed_indexes.clear()
     cfg = load_config(config_path)
     print(f"Loaded config from {config_path.relative_to(ROOT) if ROOT in config_path.parents else config_path}")
 
-    # Check every query file, and qrels for scored sets, before the slow retrieval.
+    # Check every query file, and qrels for evaluated sets, before the slow retrieval.
     for job in cfg["sets"]:
-        if job["score"]:
+        if job["metrics"]:
             require_qrels(job["name"], cfg["levels"])
         query_path = QUERY_FILES[job["name"]]
         if not query_path.exists():
@@ -469,7 +643,7 @@ def main(argv: list[str] | None = None) -> int:
                 methods=cfg["methods"],
                 stem=cfg["stem"],
                 k=cfg["k"],
-                score=job["score"],
+                evaluate=job["metrics"],
                 metrics=cfg["metrics"],
                 strict_metrics=cfg["strict_metrics"],
                 stat_test=cfg["stat_test"],
