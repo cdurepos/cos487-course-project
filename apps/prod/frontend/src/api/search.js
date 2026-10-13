@@ -29,7 +29,7 @@ export async function search({ query, settings, signal }) {
     type: settings?.type ?? 'bm25',
     level: settings?.level ?? 'paper',
     stem: String(settings?.stem ?? true),
-    k: String(settings?.k ?? 10),
+    k: String(Math.min(100, Math.max(1, Math.trunc(Number(settings?.k)) || 10))),
   });
 
   const payload = await getJson(`/search?${params}`, signal);

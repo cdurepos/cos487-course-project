@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import styles from './Settings.module.css';
 
 const RETRIEVAL_TYPES = [
@@ -18,11 +19,21 @@ export const DEFAULT_SETTINGS = {
   k: 10,
 };
 
+// The API accepts 1-100 results per search.
+const MIN_K = 1;
+const MAX_K = 100;
+const clampK = (n) => Math.min(MAX_K, Math.max(MIN_K, n));
+
 /**
  * Retrieval settings: method, index level, stemming, and how many hits to ask
  * for. Changing these re-runs the search from App.
  */
 export default function Settings({ settings, onChange, onReset }) {
+  // The field can sit empty or half-typed without sending a bad value to the
+  // API; settings.k only ever holds a number from 1 to 100.
+  const [kDraft, setKDraft] = useState(String(settings.k));
+  useEffect(() => setKDraft(String(settings.k)), [settings.k]);
+
   return (
     <div className={styles.root}>
       <div className={styles.group} role="group" aria-labelledby="retrieval-type-label">
@@ -87,16 +98,17 @@ export default function Settings({ settings, onChange, onReset }) {
           className={styles.field}
           type="number"
           inputMode="numeric"
-          min="1"
-          max="100"
-          value={settings.k}
+          min={MIN_K}
+          max={MAX_K}
+          value={kDraft}
           onChange={(e) => {
-            const next = Number(e.target.value);
-            onChange({
-              ...settings,
-              k: Number.isFinite(next) ? next : DEFAULT_SETTINGS.k,
-            });
+            setKDraft(e.target.value);
+            const next = Number.parseInt(e.target.value, 10);
+            if (Number.isFinite(next)) {
+              onChange({ ...settings, k: clampK(next) });
+            }
           }}
+          onBlur={() => setKDraft(String(settings.k))}
         />
       </div>
 

@@ -425,6 +425,37 @@ def load_queries(name, stem=False):
     return out
 
 
+# Some source titles have front matter glued onto the end, such as
+# "...GraphsConference: Proceedings of ...ISBN: ...DOI: ..." or
+# "...Thanks: The author was supported by ...". A label followed by a colon
+# marks where the real title stops.
+TITLE_TRAILER = re.compile(
+    r"\s*(?:Thanks|Conference|Journal|Keywords?|Preprint|Facilities|ISBN|DOI|CCS"
+    r"|Copyright|Accepted|Published|Submitted|Affiliation|Note|PubID"
+    r"|Publication type)\s*:"
+)
+MAX_TITLE_CHARS = 250
+
+
+def clean_title(title):
+    """Trim front matter that the source data appended to a paper title."""
+    match = TITLE_TRAILER.search(title, 1)
+    if match:
+        title = title[: match.start()]
+
+    # A few titles are echoed again after a year, like "Title2023Title".
+    head = title[:25]
+    if len(head) == 25:
+        echo = title.find(head, 25)
+        if echo != -1:
+            title = title[:echo].rstrip(" 0123456789")
+
+    title = title.strip()
+    if len(title) > MAX_TITLE_CHARS:
+        title = title[: MAX_TITLE_CHARS - 1].rstrip() + "…"
+    return title
+
+
 def load_titles():
     """Return {paper_id: (title, abstract)} for displaying search results."""
     path = os.path.join(OUT_DIR, "paper_titles.tsv")
@@ -433,7 +464,7 @@ def load_titles():
         for line in f:
             parts = line.rstrip("\n").split("\t")
             if len(parts) == 3:
-                titles[parts[0]] = (parts[1], parts[2])
+                titles[parts[0]] = (clean_title(parts[1]), parts[2])
     return titles
 
 

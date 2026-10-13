@@ -32,6 +32,11 @@
   margin: 0 0 0.625rem;
   max-width: 72ch;
   color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  overflow: hidden;
 }
 
 .meta {

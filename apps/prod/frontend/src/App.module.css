@@ -21,6 +21,12 @@
   padding: 1.25rem 0;
 }
 
+.topbarStart {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .topbarEnd {
   position: relative;
 }

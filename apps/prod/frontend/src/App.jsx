@@ -191,16 +191,17 @@ export default function App() {
 
       <div className={styles.main}>
         <header className={styles.topbar}>
-          {showBack ? (
-            <button
-              type="button"
-              className="iconbtn"
-              onClick={goBack}
-              aria-label={phase === 'loading' ? 'Cancel this search' : 'Back to the search box'}
-            >
-              <BackIcon width={28} height={28} />
-            </button>
-          ) : (
+          <div className={styles.topbarStart}>
+            {showBack && (
+              <button
+                type="button"
+                className="iconbtn"
+                onClick={goBack}
+                aria-label={phase === 'loading' ? 'Cancel this search' : 'Back to the search box'}
+              >
+                <BackIcon width={28} height={28} />
+              </button>
+            )}
             <button
               type="button"
               className={`iconbtn ${railOpen ? 'is-on' : ''}`}
@@ -211,7 +212,7 @@ export default function App() {
             >
               <SettingsIcon width={28} height={28} />
             </button>
-          )}
+          </div>
 
           <div className={styles.topbarEnd} ref={historyWrapRef}>
             <button

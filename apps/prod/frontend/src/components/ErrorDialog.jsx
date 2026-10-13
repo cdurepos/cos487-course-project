@@ -9,7 +9,7 @@ const COPY = {
   },
   TIMEOUT: {
     title: 'The search timed out',
-    body: 'The index took longer than ten seconds to answer. Your query is still in the box — run it again, or narrow it first.',
+    body: 'The index took longer than a minute to answer. Your query is still in the box — run it again, or narrow it first.',
     action: 'Back to the search box',
   },
   NETWORK: {
@@ -32,12 +32,12 @@ export default function ErrorDialog({ code, onDismiss }) {
   const dialogRef = useRef(null);
   const copy = COPY[code] ?? COPY.SERVER;
 
+  // No cleanup that calls close(): that fires `onClose`, which would dismiss
+  // the error the moment StrictMode re-runs this effect in development.
+  // Unmounting the dialog already removes it from the top layer.
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog.open) dialog.showModal();
-    return () => {
-      if (dialog.open) dialog.close();
-    };
   }, []);
 
   const close = () => dialogRef.current?.close();
