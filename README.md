@@ -99,4 +99,29 @@ npm run dev
 python -m apps.evaluation.evaluate
 ```
 
+## Course Required Documentation
 
+### Team Member Contributions
+
+#### Clayton Durepos
+
+- Backend System Architecture and Code
+- Evaluation Pipeline
+- `run.sh` branching for `--prod` and `--eval`
+- Post-Integration Frontend Design
+
+#### Ella Hawkins
+
+- Indexer Component
+- BM25 System
+- `install.sh`, `run.sh`
+
+#### Grace Kalonji
+
+- TF-IDF System
+- Frontend Design
+
+#### Jack Bergin
+
+- Preprocessor System
+- Frontend Construction
