@@ -24,3 +24,6 @@ processed/
 
 # macOS
 .DS_Store
+
+# finetuned models
+models/
