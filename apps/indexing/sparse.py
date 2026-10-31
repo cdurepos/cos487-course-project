@@ -9,7 +9,7 @@ from scipy import sparse
 from sentence_transformers import SparseEncoder
 from tqdm.auto import tqdm
 
-from apps.processing.encoding import encode
+from apps.utils.encoding import encode
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "JSON Files"
