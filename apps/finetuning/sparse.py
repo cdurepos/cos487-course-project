@@ -10,9 +10,11 @@ import torch
 import torch.nn.functional as F
 from sentence_transformers import SparseEncoder
 
+from apps.utils.encoding import encode
+
 ROOT = Path(__file__).resolve().parents[2]
 DATA, OUT = ROOT / "data", ROOT / "models" / "splade"
-TOKENS, EPOCHS, BATCH = 256, 3, 8
+TOKENS, EPOCHS, BATCH = 256, 5, 8
 
 random.seed(42)
 torch.manual_seed(42)
@@ -30,28 +32,6 @@ def paragraph(docid):
     return json.loads(
         (DATA / "JSON Files" / f"{pid}.json").read_text()
     )["paragraphs"][docid]
-
-
-@lru_cache(maxsize=8192)
-def chunks(text):
-    ids = tok(text, add_special_tokens=False, verbose=False)["input_ids"]
-    length = TOKENS - 2
-    return [
-        [tok.cls_token_id, *ids[i:i + length], tok.sep_token_id]
-        for i in range(0, len(ids), length)
-    ] or [[tok.cls_token_id, tok.sep_token_id]]
-
-
-def embed(text):
-    parts = chunks(text)
-    pooled = []
-    for i in range(0, len(parts), BATCH):
-        inputs = tok.pad(
-            {"input_ids": parts[i:i + BATCH]},
-            return_tensors="pt"
-        ).to(device)
-        pooled.append(model(inputs)["sentence_embedding"].amax(dim=0))
-    return torch.stack(pooled).amax(dim=0)
 
 
 # Load training queries
@@ -115,8 +95,11 @@ for epoch in range(EPOCHS):
                 if len(set(docs)) != BATCH:
                     continue
 
-                q = torch.stack([embed(queries[qid]) for qid in batch])
-                d = torch.stack([embed(paragraph(docid)) for docid in docs])
+                q = encode(model, [queries[qid] for qid in batch],
+                        pooling="max", batch_size=BATCH, max_tokens=TOKENS)
+
+                d = encode(model, [paragraph(docid) for docid in docs],
+                        pooling="max", batch_size=BATCH, max_tokens=TOKENS)
 
                 loss = F.cross_entropy(
                     q @ d.T / 20, torch.arange(BATCH, device=device)
