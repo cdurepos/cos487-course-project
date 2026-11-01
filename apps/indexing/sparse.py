@@ -1,79 +1,91 @@
-"""Index all arXiv paragraphs and papers with the fine-tuned SPLADE model."""
+
+"""Index arXiv papers and paragraphs with resumable SPLADE CSR shards."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
 import numpy as np
 import torch
-from scipy import sparse
 from sentence_transformers import SparseEncoder
 from tqdm.auto import tqdm
 
 from apps.utils.encoding import encode
+from apps.utils import sharding
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "data" / "JSON Files"
-OUT = ROOT / "data" / "indexes" / "splade"
+DATA, MODEL = ROOT / "data" / "JSON Files", ROOT / "models" / "splade"
 TOKENS, GROUP = 256, 16
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch-size", type=int, default=8)
-parser.add_argument("--limit", type=int, default=0, help="Index only N papers for testing")
+parser.add_argument("--interval", type=int, default=100)
+parser.add_argument("--limit", type=int, default=0)
 args = parser.parse_args()
+if args.batch_size < 1 or args.interval < 1 or args.limit < 0:
+    parser.error("Invalid batch size, interval or limit")
 
-model = SparseEncoder(str(ROOT / "models" / "splade"))
-model.max_seq_length = TOKENS
-model.eval()
-tok, device = model.tokenizer, model.device
-D = model.get_embedding_dimension()
-indexes = {name: {"ids": [], "data": [], "cols": [], "ptr": [0]}
-           for name in ("paragraphs", "papers")}
-
-
-def add(level, docid, vector):
-    index = indexes[level]
-    active = np.flatnonzero(vector)
-    index["ids"].append(docid)
-    index["data"].append(vector[active])
-    index["cols"].append(active.astype(np.int32))
-    index["ptr"].append(index["ptr"][-1] + len(active))
-
-
+OUT = ROOT / "data" / "indexes" / (
+    f"splade_test_{args.limit}" if args.limit else "splade"
+)
 files = sorted(DATA.glob("*.json"))
 if args.limit:
     files = files[:args.limit]
 if not files:
     raise FileNotFoundError(f"No paper JSON files found in {DATA}")
 
+spec = {
+    "corpus": [(p.name, p.stat().st_size, p.stat().st_mtime_ns) for p in files],
+    "model": [
+        (str(p.relative_to(MODEL)), p.stat().st_size, p.stat().st_mtime_ns)
+        for p in sorted(MODEL.rglob("*")) if p.is_file()
+        and p.suffix in (".bin", ".safetensors", ".json", ".txt", ".model")
+        and p.name != "loss_history.json"
+    ],
+    "tokens": TOKENS, "interval": args.interval,
+}
+signature = hashlib.sha256(json.dumps(spec).encode()).hexdigest()
+state = sharding.resume(OUT, files, signature, args.interval)
+
+model = SparseEncoder(str(MODEL))
+model.max_seq_length = TOKENS
+model.eval()
+dimension = model.get_embedding_dimension()
+buffers = sharding.init()
+
 with torch.inference_mode():
-    for path in tqdm(files, desc="Indexing SPLADE"):
-        article = json.loads(path.read_text())
-        pid = article["paper_id"]
-        paragraphs = article["paragraphs"]
-        ids = [None, *paragraphs.keys()]
-        texts = [f'{article.get("title", "")}. {article.get("abstract", "")}',
-                 *paragraphs.values()]
-        paper_vector = np.zeros(D, dtype=np.float32)
+    for n, path in enumerate(
+        tqdm(files[state["count"]:], initial=state["count"],
+             total=len(files), desc="Indexing SPLADE"),
+        state["count"] + 1
+    ):
+        paper = json.loads(path.read_text())
+        pid, paragraphs = paper["paper_id"], paper["paragraphs"]
+
+        if pid != path.stem:
+            raise ValueError(f"Paper ID differs from filename: {path}")
+
+        ids = [None, *paragraphs]
+        texts = [
+            f'{paper.get("title", "")}. {paper.get("abstract", "")}',
+            *paragraphs.values()
+        ]
+        paper_vector = np.zeros(dimension, dtype=np.float32)
 
         for i in range(0, len(texts), GROUP):
             vectors = encode(
-                model, texts[i:i + GROUP],
-                pooling="max",
-                batch_size=args.batch_size,
-                max_tokens=TOKENS
-            ).cpu().numpy()
+                model, texts[i:i + GROUP], pooling="max",
+                batch_size=args.batch_size, max_tokens=TOKENS
+            ).float().cpu().numpy()
+
             np.maximum(paper_vector, vectors.max(axis=0), out=paper_vector)
             for docid, vector in zip(ids[i:i + GROUP], vectors):
                 if docid is not None:
-                    add("paragraphs", docid, vector)
-        add("papers", pid, paper_vector)
+                    sharding.add(buffers, "paragraphs", docid, vector)
 
-OUT.mkdir(parents=True, exist_ok=True)
-for level, index in indexes.items():
-    data = np.concatenate(index["data"]) if index["data"] else np.array([], dtype=np.float32)
-    cols = np.concatenate(index["cols"]) if index["cols"] else np.array([], dtype=np.int32)
-    matrix = sparse.csr_matrix((data, cols, index["ptr"]),
-                               shape=(len(index["ids"]), D))
-    sparse.save_npz(OUT / f"{level}.npz", matrix)
-    (OUT / f"{level}_ids.json").write_text(json.dumps(index["ids"]))
-    print(f"{level}: {matrix.shape[0]:,} documents, {matrix.nnz:,} nonzero weights")
+        sharding.add(buffers, "papers", pid, paper_vector)
+
+        if n % args.interval == 0 or n == len(files):
+            sharding.save(OUT, buffers, dimension, state, n, path.name)
+            buffers = sharding.init()
+            tqdm.write(f"Saved through {path.name} ({n}/{len(files)})")
