@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 from scipy import sparse
 
+from time import perf_counter
+
 LEVELS = ("paragraphs", "papers")
 
 
@@ -75,7 +77,8 @@ def load(folder, level):
         yield ids, matrix
 
 
-def search(folder, level, query_vectors, top_k=100):
+# def search(folder, level, query_vectors, top_k=100, timed=False):
+def search(folder, level, query_vectors, top_k=100, timed=False, normalized=False):
     if top_k < 1:
         raise ValueError("top_k must be positive")
     queries = np.asarray(query_vectors)
@@ -83,13 +86,29 @@ def search(folder, level, query_vectors, top_k=100):
     if single:
         queries = queries[None, :]
     results = [[] for _ in queries]
+    times = [0.0] * len(queries)
     for ids, matrix in load(folder, level):
+        norms = None
+        if normalized:
+            norms = np.sqrt(
+                np.asarray(matrix.multiply(matrix).sum(axis=1)).ravel()
+            ).clip(min=1e-12)
         k = min(top_k, len(ids))
+        if not k:
+            continue
         for j, query in enumerate(queries):
-            if not k:
-                continue
+            start = perf_counter()
             scores = np.asarray(matrix @ query).ravel()
+            if normalized:
+                scores /= norms
+
             top = np.argpartition(scores, -k)[-k:]
             results[j].extend((ids[i], float(scores[i])) for i in top)
-            results[j] = sorted(results[j], key=lambda x: (-x[1], x[0]))[:top_k]
-    return results[0] if single else results
+            results[j] = sorted(
+                results[j], key=lambda x: (-x[1], x[0])
+            )[:top_k]
+            times[j] += (perf_counter() - start) * 1000
+    output = results[0] if single else results
+    if timed:
+        return output, times[0] if single else times
+    return output
