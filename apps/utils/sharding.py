@@ -78,7 +78,7 @@ def load(folder, level):
 
 
 # def search(folder, level, query_vectors, top_k=100, timed=False):
-def search(folder, level, query_vectors, top_k=100, timed=False, normalized=False):
+def search(folder, level, query_vectors, top_k=100, timed=False, normalized=True):
     if top_k < 1:
         raise ValueError("top_k must be positive")
     queries = np.asarray(query_vectors)
