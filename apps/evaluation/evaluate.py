@@ -67,7 +67,6 @@ def retrieve(model, spec, index, queries, levels, k):
             v = encode(
                 model, text,
                 pooling=spec.get("pooling", "max" if is_sparse else "mean"),
-                normalize=spec.get("normalize", not is_sparse),
                 max_tokens=spec.get("max_tokens", model.max_seq_length),
                 batch_size=spec.get("batch_size", 8)
             )
@@ -84,7 +83,7 @@ def retrieve(model, spec, index, queries, levels, k):
             np.stack(vectors),
             k,
             timed=True,
-            normalized=spec.get("normalize_docs", False)
+            normalized=spec.get("normalized", True)
         )
         #
         elapsed = (time.perf_counter() - begin) * 1000

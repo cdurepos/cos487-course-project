@@ -3,7 +3,7 @@
 import torch
 import torch.nn.functional as F
 
-def encode(model, texts, pooling="max", batch_size=8, max_tokens=None, normalize=False, return_lengths=False):
+def encode(model, texts, pooling="max", batch_size=8, max_tokens=None, return_lengths=False):
     """Encode text(s) using chunk-wise max or token-weighted mean pooling."""
 
     if pooling not in ("max", "mean"):
@@ -57,8 +57,6 @@ def encode(model, texts, pooling="max", batch_size=8, max_tokens=None, normalize
         (v / lengths[j] if pooling == "mean" else v) if v is not None else zero
         for j, v in enumerate(outputs)
     ])
-    if normalize:
-        result = F.normalize(result, p=2, dim=-1)
     if single:
         result, lengths = result[0], lengths[0]
     return (result, lengths) if return_lengths else result
