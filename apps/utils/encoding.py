@@ -3,6 +3,15 @@
 import torch
 import torch.nn.functional as F
 
+
+def get_output_dim(model):
+    """Vector width. Baseline SPLADE leaves the pooling size unset, so use the vocabulary."""
+    pooling = next((m for m in model.modules() if type(m).__name__ == "SpladePooling"), None)
+    if pooling is not None:
+        return pooling.embedding_dimension or model.tokenizer.vocab_size
+    return model.get_embedding_dimension()
+
+
 def encode(model, texts, pooling="max", batch_size=8, max_tokens=None, return_lengths=False):
     """Encode text(s) using chunk-wise max or token-weighted mean pooling."""
 
@@ -52,7 +61,7 @@ def encode(model, texts, pooling="max", batch_size=8, max_tokens=None, return_le
                 else outputs[j] + value
             )
 
-    zero = torch.zeros(model.get_embedding_dimension(), device=model.device)
+    zero = torch.zeros(get_output_dim(model), device=model.device)
     result = torch.stack([
         (v / lengths[j] if pooling == "mean" else v) if v is not None else zero
         for j, v in enumerate(outputs)

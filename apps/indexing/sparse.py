@@ -10,11 +10,12 @@ import torch
 from sentence_transformers import SparseEncoder
 from tqdm.auto import tqdm
 
-from apps.utils.encoding import encode
+from apps.utils.encoding import encode, get_output_dim
 from apps.utils import sharding
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA, MODEL = ROOT / "data" / "JSON Files", ROOT / "models" / "splade"
+DATA = ROOT / "data" / "JSON Files"
+MODEL = ( ROOT / 'models' / 'splade' )  # `naver/splade-v3` for base model
 TOKENS, GROUP = 256, 16
 
 parser = argparse.ArgumentParser()
@@ -26,7 +27,7 @@ if args.batch_size < 1 or args.interval < 1 or args.limit < 0:
     parser.error("Invalid batch size, interval or limit")
 
 OUT = ROOT / "data" / "indexes" / (
-    f"splade_test_{args.limit}" if args.limit else "splade"
+    f"splade_test_{args.limit}" if args.limit else "splade" # 'splade-baseline' for base model
 )
 files = sorted(DATA.glob("*.json"))
 if args.limit:
@@ -34,14 +35,19 @@ if args.limit:
 if not files:
     raise FileNotFoundError(f"No paper JSON files found in {DATA}")
 
-spec = {
-    "corpus": [(p.name, p.stat().st_size, p.stat().st_mtime_ns) for p in files],
-    "model": [
+if isinstance(MODEL, Path):
+    model_spec = [
         (str(p.relative_to(MODEL)), p.stat().st_size, p.stat().st_mtime_ns)
         for p in sorted(MODEL.rglob("*")) if p.is_file()
         and p.suffix in (".bin", ".safetensors", ".json", ".txt", ".model")
         and p.name != "loss_history.json"
-    ],
+    ]
+else:
+    model_spec = MODEL
+
+spec = {
+    "corpus": [(p.name, p.stat().st_size, p.stat().st_mtime_ns) for p in files],
+    "model": model_spec,
     "tokens": TOKENS, "interval": args.interval,
 }
 signature = hashlib.sha256(json.dumps(spec).encode()).hexdigest()
@@ -50,7 +56,7 @@ state = sharding.resume(OUT, files, signature, args.interval)
 model = SparseEncoder(str(MODEL))
 model.max_seq_length = TOKENS
 model.eval()
-dimension = model.get_embedding_dimension()
+dimension = get_output_dim(model)
 buffers = sharding.init()
 
 with torch.inference_mode():
