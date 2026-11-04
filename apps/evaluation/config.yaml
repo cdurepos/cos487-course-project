@@ -2,15 +2,12 @@
 team_name: TheSearchParty
 
 sets:
-  - name: study
-    metrics: true
-  - name: test
-    metrics: false
+  - {name: study, metrics: true}
+  - {name: test, metrics: false}
 
 levels: [paper, paragraph]
 k: 100
 
-# Each model has its own checkpoint and index.
 models:
   sparse:
     checkpoint: models/splade
@@ -18,38 +15,22 @@ models:
     type: sparse
     max_tokens: 256
     normalized: true
+    compare_pooling: true
+    
+sparse-baseline:
+    checkpoint: naver/splade-v3
+    index_path: data/indexes/splade-baseline
+    type: sparse
+    max_tokens: 256
+    normalized: true
+    compare_pooling: true
+    save_run: false
 
-    sparse-baseline:
-      checkpoint: naver/splade-v3
-      index_path: data/indexes/splade-baseline
-      type: sparse
-      max_tokens: 256
-      normalized: true
-
-  # Enable dense model and index are ready.
-  # dense:
-  #   checkpoint: models/sbert
-  #   index_path: data/indexes/sbert
-  #   type: dense
-  #   max_tokens: 256
-  #   normalized: true
-
-# Existing Part 1 TREC runs used for comparisons.
 baseline_methods: [bm25]
-
-# Only affects Part 1 baseline filenames.
 stem: true
 
-metrics:
-  - ndcg
-  - ndcg@5
-  - mrr
-  - precision@5
-  - precision@10
-
-strict_metrics:
-  - mrr
-  - precision@5
+metrics: [ndcg, ndcg@5, mrr, precision@5, precision@10]
+strict_metrics: [mrr, precision@5]
 
 stat_test: student
 max_p: 0.05
