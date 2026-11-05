@@ -10,7 +10,7 @@ import torch
 from sentence_transformers import SparseEncoder
 from tqdm.auto import tqdm
 
-from apps.retrieval.sparse import catalog
+from apps.utils.sparse import catalog
 from apps.utils.encoding import encode, get_output_dim
 from apps.utils import sharding
 

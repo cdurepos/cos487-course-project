@@ -10,7 +10,8 @@ from ranx import Qrels, Run, compare, evaluate
 from sentence_transformers import SparseEncoder
 
 from apps.retrieval.dense import search as dense_search
-from apps.retrieval.sparse import catalog, search as sparse_search
+from apps.retrieval.sparse import search as sparse_search
+from apps.utils.sparse import catalog
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
