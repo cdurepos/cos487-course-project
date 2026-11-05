@@ -12,7 +12,7 @@ set -m
 # --prod starts the FastAPI backend on port 8000 and the Vite/React frontend on
 # port 5173. The frontend proxies /search to the backend.
 #
-# --eval runs the query sets in apps/evaluation/config.yaml. Each set writes
+# --eval runs the query sets in configs/eval.yaml. Each set writes
 # TREC runs under data/runs/. Sets with score: true are also measured against
 # qrels, and those summaries land under data/evaluation/. Extra arguments are
 # passed through to the evaluation script, so an alternate config can be used:
@@ -41,7 +41,7 @@ usage() {
 Usage: bash bin/run.sh (--prod | --eval) [extra arguments]
 
   --prod        Start the production app: FastAPI backend and Vite frontend.
-  --eval        Run the evaluation pipeline from apps/evaluation/config.yaml.
+  --eval        Run the evaluation pipeline from configs/eval.yaml.
                 Extra arguments are forwarded to apps.evaluation.evaluate,
                 such as the path to an alternate config file.
   -h, --help    Show this message.
@@ -215,7 +215,7 @@ run_eval() {
     fi
 
     echo "Repository: $REPO_ROOT"
-    echo "Settings:   apps/evaluation/config.yaml"
+    echo "Settings:   configs/eval.yaml"
     echo
 
     echo "Running evaluation..."

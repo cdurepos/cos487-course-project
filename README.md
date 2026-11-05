@@ -62,7 +62,7 @@ To run the research pipeline:
 bash bin/run.sh --eval
 ```
 
-Edit `apps/evaluation/config.yaml` to change query sets, metrics, levels, and stemming.
+Edit `configs/eval.yaml` to change query sets, metrics, levels, and stemming.
 See `apps/evaluation/README.md` for more details.
 
 ### Manual Run

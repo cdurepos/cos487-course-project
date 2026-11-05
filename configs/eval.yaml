@@ -1,4 +1,3 @@
-
 team_name: TheSearchParty
 
 sets:
@@ -9,22 +8,20 @@ levels: [paper, paragraph]
 k: 100
 
 models:
-  sparse:
-    checkpoint: models/splade
-    index_path: data/indexes/splade
+  splade-finetuned:
     type: sparse
-    max_tokens: 256
-    normalized: true
-    compare_pooling: true
-    
-sparse-baseline:
-    checkpoint: naver/splade-v3
-    index_path: data/indexes/splade-baseline
+
+  splade-baseline:
     type: sparse
-    max_tokens: 256
-    normalized: true
-    compare_pooling: true
     save_run: false
+
+  qwen-finetuned:
+    type: dense
+    training: finetuned
+
+  qwen-pretrained:
+    type: dense
+    training: pretrained
 
 baseline_methods: [bm25]
 stem: true
