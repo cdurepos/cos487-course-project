@@ -13,7 +13,9 @@ python -m apps.evaluation.evaluate
 
 All settings, including which sets get metrics and the team name used in output filenames, are in `configs/eval.yaml`. Edit that file, then re-run.
 
-Sparse models in that file are loaded through `configs/sparse.yaml`. The script encodes each query and searches the model's index. A model writes a TREC run only when it sets `save_runs: true`. At most one sparse model and one dense model may set that flag. Paper retrieval uses MaxP. On sets with `metrics: true`, it also scores the max-pooled paper vectors. Those scores stay in the metric files and are not saved as a run. Models without `save_runs: true` are scored the same way and do not get a TREC file.
+Sparse models in that file are loaded through `configs/sparse.yaml`. 
+
+The script encodes each query and searches the model's index. A model writes a TREC run only when it sets `save_runs: true`. For project requirements, at most one sparse model and one dense model may set that flag. Models without `save_runs: true` are scored the same way and do not get a TREC file.
 
 The committed config retrieves Study and Test. Study has `metrics: true`, including systems performance. Test writes runs only, for annotation or any other use of the ranked results. A missing qrel file is an error when `metrics` is true.
 
