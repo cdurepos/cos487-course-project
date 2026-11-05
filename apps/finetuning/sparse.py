@@ -10,11 +10,14 @@ import torch
 import torch.nn.functional as F
 from sentence_transformers import SparseEncoder
 
+from apps.utils.sparse import catalog
 from apps.utils.encoding import encode
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA, OUT = ROOT / "data", ROOT / "models" / "splade"
+DATA = ROOT / "data"
+OUT = catalog()["splade-finetuned"]["directory"]
 TOKENS, EPOCHS, BATCH = 256, 5, 8
+TEMPERATURE = 0.05
 
 random.seed(42)
 torch.manual_seed(42)
@@ -100,9 +103,11 @@ for epoch in range(EPOCHS):
 
                 d = encode(model, [paragraph(docid) for docid in docs],
                         pooling="max", batch_size=BATCH, max_tokens=TOKENS)
+                qn = q / q.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+                dn = d / d.norm(dim=-1, keepdim=True).clamp_min(1e-12)
 
                 loss = F.cross_entropy(
-                    q @ d.T / 20, torch.arange(BATCH, device=device)
+                    qn @ dn.T / TEMPERATURE, torch.arange(BATCH, device=device)
                 )
                 loss += (
                     5e-5 * q.mean(0).square().sum()

@@ -2,9 +2,7 @@
 """Resumable sparse indexes saved as SciPy .npz batches."""
 import json
 from pathlib import Path
-from time import perf_counter
 
-import numpy as np
 from scipy import sparse
 
 LEVELS = ("paragraphs", "papers")
@@ -114,104 +112,3 @@ def load(folder, level):
             raise ValueError(f"Index/ID mismatch: {name}")
 
         yield ids, matrix
-
-
-def search(folder, level, query_vectors, top_k=100,
-           strategy="maxp", timed=False, normalized=True):
-    """Search paragraphs or papers using MaxP or pooled embeddings."""
-    if level not in ("paper", "paragraph"):
-        raise ValueError("level must be 'paper' or 'paragraph'")
-
-    if level == "paper" and strategy not in ("maxp", "pool"):
-        raise ValueError("strategy must be 'maxp' or 'pool'")
-
-    if top_k < 1:
-        raise ValueError("top_k must be positive")
-
-    maxp = level == "paper" and strategy == "maxp"
-    source = (
-        "papers"
-        if level == "paper" and strategy == "pool"
-        else "paragraphs"
-    )
-
-    queries = np.asarray(query_vectors)
-    single = queries.ndim == 1
-
-    if single:
-        queries = queries[None, :]
-
-    results = [{} for _ in queries]
-    times = [0.0] * len(queries)
-
-    for ids, matrix in load(folder, source):
-        if not ids:
-            continue
-
-        # Document L2 normalization
-        if normalized:
-            norms = np.sqrt(
-                np.asarray(
-                    matrix.multiply(matrix).sum(axis=1)
-                ).ravel()
-            ).clip(min=1e-12)
-
-        # Group paragraphs by their parent paper.
-        if maxp:
-            paper_ids, groups = np.unique(
-                [docid.rsplit("_", 1)[0] for docid in ids],
-                return_inverse=True
-            )
-
-        for j, query in enumerate(queries):
-            start = perf_counter()
-
-            scores = np.asarray(matrix @ query).ravel()
-
-            if normalized:
-                qnorm = max(np.linalg.norm(query), 1e-12)
-                scores /= norms
-
-            if maxp:
-                # Highest paragraph score for each paper.
-                values = np.full(len(paper_ids), -np.inf)
-                np.maximum.at(values, groups, scores)
-                docids = paper_ids
-            else:
-                values, docids = scores, ids
-
-            # Keep the top candidates from this shard.
-            k = min(top_k, len(docids))
-            top = np.argpartition(values, -k)[-k:]
-
-            # Merge candidates across shards.
-            for i in top:
-                docid = str(docids[i])
-                score = float(values[i])
-
-                results[j][docid] = max(
-                    results[j].get(docid, -np.inf),
-                    score
-                )
-
-            results[j] = dict(sorted(
-                results[j].items(),
-                key=lambda item: (-item[1], item[0])
-            )[:top_k])
-
-            times[j] += (perf_counter() - start) * 1000
-
-    ranked = [
-        sorted(
-            hits.items(),
-            key=lambda item: (-item[1], item[0])
-        )
-        for hits in results
-    ]
-
-    output = ranked[0] if single else ranked
-
-    if timed:
-        return output, times[0] if single else times
-
-    return output

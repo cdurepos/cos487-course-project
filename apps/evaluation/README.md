@@ -1,6 +1,6 @@
 # Evaluation
 
-Runs the retrieval systems on every query set in `config.yaml`. Each set writes TREC run files. Sets with `metrics: true` are measured against qrels using [ranx](https://github.com/AmenRa/ranx) and record systems performance. Sets with `metrics: false` write runs only.
+Runs the retrieval systems on every query set in `configs/eval.yaml`. Each set writes TREC run files. Sets with `metrics: true` are measured against qrels using [ranx](https://github.com/AmenRa/ranx) and record systems performance. Sets with `metrics: false` write runs only.
 
 ## Run
 
@@ -11,7 +11,9 @@ pip install -r requirements.txt
 python -m apps.evaluation.evaluate
 ```
 
-All settings, including which sets get metrics and the team name used in output filenames, are in `config.yaml`. Edit that file, then re-run.
+All settings, including which sets get metrics and the team name used in output filenames, are in `configs/eval.yaml`. Edit that file, then re-run.
+
+Sparse models in that file are loaded through `configs/sparse.yaml`. The script encodes each query, searches the model's index, and writes a run. Paper retrieval uses MaxP. On sets with `metrics: true`, it also scores the max-pooled paper vectors. Those scores stay in the metric files and are not saved as a run. A model with `save_run: false` is scored the same way and does not get a TREC file.
 
 The committed config retrieves Study and Test. Study has `metrics: true`, including systems performance. Test writes runs only, for annotation or any other use of the ranked results. A missing qrel file is an error when `metrics` is true.
 
@@ -65,4 +67,4 @@ Stemming is the default. Setting `stem: false` writes `_no-stem` files.
 
 ## Quick smoke test
 
-In `config.yaml`, set `limit: 10`, run once, then set `limit` back to `null`. The limit applies to every set.
+In `configs/eval.yaml`, set `limit: 10`, run once, then set `limit` back to `null`. The limit applies to every set.

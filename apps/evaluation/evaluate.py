@@ -1,81 +1,23 @@
 
 """Evaluate neural retrieval; save MaxP runs and compare pooling in memory."""
 import json
-import statistics
 import sys
 from itertools import combinations
 from pathlib import Path
-from time import perf_counter
 
-import numpy as np
-import torch
 import yaml
 from ranx import Qrels, Run, compare, evaluate
-from sentence_transformers import SentenceTransformer, SparseEncoder
+from sentence_transformers import SparseEncoder
 
-from apps.utils.encoding import encode
-from apps.utils.sharding import search
+from apps.retrieval.dense import search as dense_search
+from apps.retrieval.sparse import search as sparse_search
+from apps.utils.sparse import catalog
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
 RUNS = DATA / "runs"
 OUT = DATA / "evaluation"
 METRICS = ["ndcg", "ndcg@5", "mrr", "precision@5", "precision@10"]
-
-
-def retrieve(model, spec, index, queries, levels, k, pooling):
-    """Encode once; retrieve primary runs and optional pooled-paper experiment."""
-    vectors, encoding_ms = [], []
-
-    with torch.inference_mode():
-        for _, text in queries:
-            start = perf_counter()
-            vector = encode(
-                model, text,
-                pooling=spec.get("pooling", "max" if spec["type"] == "sparse" else "mean"),
-                max_tokens=spec.get("max_tokens", model.max_seq_length),
-                batch_size=spec.get("batch_size", 8),
-            )
-            vectors.append(vector.float().cpu().numpy())
-            encoding_ms.append((perf_counter() - start) * 1000)
-
-    query_vectors = np.stack(vectors)
-    jobs = [(level, "maxp", False) for level in levels]
-    if pooling and "paper" in levels:
-        jobs.append(("paper", "pool", True))
-
-    results = {}
-    for level, strategy, experimental in jobs:
-        start = perf_counter()
-        hits, scoring_ms = search(
-            index, level, query_vectors, k,
-            strategy=strategy, timed=True,
-            normalized=spec.get("normalized", True),
-        )
-        wall_ms = (perf_counter() - start) * 1000
-        durations = [a + b for a, b in zip(encoding_ms, scoring_ms)][1:]
-        source = "papers" if strategy == "pool" and level == "paper" else "paragraphs"
-        files = [*index.glob(f"{source}_*.npz"), *index.glob(f"{source}_*_ids.json")]
-
-        results[(level, experimental)] = (
-            {qid: dict(hits[i]) for i, (qid, _) in enumerate(queries)},
-            {
-                "queries": len(durations), "warmup_excluded": 1,
-                "mean": round(statistics.mean(durations), 3) if durations else None,
-                "median": round(statistics.median(durations), 3) if durations else None,
-                "measurement": "query encoding + scoring (excludes shard I/O)",
-                "shard_search_wall_ms": round(wall_ms, 3),
-            },
-            {
-                "path": str(index.relative_to(ROOT)) if index.is_relative_to(ROOT) else str(index),
-                "source": source,
-                "strategy": strategy if level == "paper" else "paragraph",
-                "bytes": sum(p.stat().st_size for p in files),
-                "files": len(files),
-            },
-        )
-
-    return results
 
 
 def evaluate_level(cfg, job, level, queries, generated):
@@ -224,7 +166,7 @@ def evaluate_level(cfg, job, level, queries, generated):
     print(f"Saved metrics: {OUT / f'{prefix}.json'}", flush=True)
 
 
-def main(config=Path(__file__).with_name("config.yaml")):
+def main(config=ROOT / "configs" / "eval.yaml"):
     file = Path(config).expanduser()
     cfg = yaml.safe_load((file if file.is_absolute() else ROOT / file).read_text())
     if not cfg.get("models") or not cfg.get("sets"):
@@ -250,29 +192,44 @@ def main(config=Path(__file__).with_name("config.yaml")):
 
     generated = {name: {level: {} for level in levels} for name in sets}
     corpus_count = sum(1 for _ in (DATA / "JSON Files").glob("*.json"))
+    sparse = catalog()
 
     for label, spec in cfg["models"].items():
-        local = ROOT / spec["checkpoint"]
-        checkpoint = local if local.exists() else spec["checkpoint"]
-        index = ROOT / spec["index_path"]
-
-        count = json.loads((index / "checkpoint.json").read_text())["count"]
-        if count != corpus_count:
-            raise RuntimeError(f"{label}: incomplete index ({count}/{corpus_count})")
-
-        cls = SparseEncoder if spec["type"] == "sparse" else SentenceTransformer
-        model = cls(str(checkpoint))
-        model.eval()
-        print(f"Loaded {label}: {checkpoint}", flush=True)
+        kind = spec.get("type", "sparse")
+        model = index = None
+        if kind == "sparse":
+            if label not in sparse:
+                raise KeyError(f"{label} is missing from configs/sparse.yaml")
+            checkpoint, index = sparse[label]["checkpoint"], sparse[label]["index"]
+            count = json.loads((index / "checkpoint.json").read_text())["count"]
+            if count != corpus_count:
+                raise RuntimeError(f"{label}: incomplete index ({count}/{corpus_count})")
+            model = SparseEncoder(str(checkpoint))
+            model.eval()
+            print(f"Loaded {label}: {checkpoint}", flush=True)
+        elif kind != "dense":
+            raise ValueError(f"{label}: unknown model type {kind!r}")
 
         for job in cfg["sets"]:
-            name = job["name"]
-            outputs = retrieve(
-                model, spec, index, sets[name], levels, k,
-                pooling=job["metrics"] and spec.get("compare_pooling", False),
-            )
+            name, queries = job["name"], sets[job["name"]]
+            if kind == "sparse":
+                calls = [(level, "maxp", False) for level in levels]
+                if job["metrics"] and "paper" in levels:
+                    calls.append(("paper", "pool", True))
+            else:
+                calls = [(level, None, False) for level in levels]
 
-            for (level, experimental), (ranked, latency, info) in outputs.items():
+            for level, strategy, experimental in calls:
+                if kind == "sparse":
+                    ranked, latency, info = sparse_search(
+                        model, index, level, queries, k, strategy, timed=True,
+                    )
+                elif kind == "dense":
+                    ranked = {
+                        qid: dict(dense_search(text, spec["training"], level, k))
+                        for qid, text in queries
+                    }
+                    latency, info = {}, {}
                 method = f"{label}-pool" if experimental else label
                 run = Run.from_dict(ranked, name=method)
                 generated[name][level][method] = (run, latency, info, experimental)
@@ -292,4 +249,4 @@ def main(config=Path(__file__).with_name("config.yaml")):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).with_name("config.yaml"))
+    main(sys.argv[1] if len(sys.argv) > 1 else ROOT / "configs" / "eval.yaml")
