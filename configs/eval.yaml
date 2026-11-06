@@ -10,14 +10,15 @@ k: 100
 models:
   splade-finetuned:
     type: sparse
+    save_runs: true
 
   splade-baseline:
     type: sparse
-    save_run: false
 
   qwen-finetuned:
     type: dense
     training: finetuned
+    save_runs: true
 
   qwen-pretrained:
     type: dense

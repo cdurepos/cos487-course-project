@@ -20,6 +20,23 @@ OUT = DATA / "evaluation"
 METRICS = ["ndcg", "ndcg@5", "mrr", "precision@5", "precision@10"]
 
 
+def check_saved_runs(cfg):
+    """Allow at most one saved run for each neural model type."""
+    chosen = {}
+    for label, spec in cfg["models"].items():
+        if not spec.get("save_runs", False):
+            continue
+        kind = spec.get("type", "sparse")
+        if kind not in ("sparse", "dense"):
+            raise ValueError(f"{label}: unknown model type {kind!r}")
+        if kind in chosen:
+            raise ValueError(
+                f"save_runs: true is set on more than one {kind} model "
+                f"({chosen[kind]} and {label})"
+            )
+        chosen[kind] = label
+
+
 def evaluate_level(cfg, job, level, queries, generated):
     name, team = job["name"], cfg["team_name"]
     stem = cfg.get("stem", True)
@@ -39,9 +56,11 @@ def evaluate_level(cfg, job, level, queries, generated):
     # Include pooling in evaluation, but not in saved run paths.
     for method, (run, _, _, experimental) in candidates.items():
         runs[method] = run
-        if not experimental and cfg["models"].get(method, {}).get("save_run", True):
+        spec = cfg["models"].get(method, {})
+        if not experimental and spec.get("save_runs", False):
+            kind = spec.get("type", "sparse")
             paths[method] = str(
-                (RUNS / f"{team}_{level}_{method}_{name}.tsv").relative_to(ROOT)
+                (RUNS / f"{team}_{level}_{kind}_{name}.tsv").relative_to(ROOT)
             )
 
     prefix = f"{name}_{level}{'_no-stem' if not stem else ''}"
@@ -86,7 +105,7 @@ def evaluate_level(cfg, job, level, queries, generated):
             # Only primary runs receive detailed query-level analysis.
             if method not in candidates or (
                 not candidates[method][3]
-                and cfg["models"].get(method, {}).get("save_run", True)
+                and cfg["models"].get(method, {}).get("save_runs", False)
             ):
                 for m in metrics:
                     for qid, score in run.scores[m].items():
@@ -171,6 +190,7 @@ def main(config=ROOT / "configs" / "eval.yaml"):
     cfg = yaml.safe_load((file if file.is_absolute() else ROOT / file).read_text())
     if not cfg.get("models") or not cfg.get("sets"):
         raise ValueError("Configure models and query sets")
+    check_saved_runs(cfg)
 
     levels, k = cfg.get("levels", ["paper", "paragraph"]), int(cfg.get("k", 100))
     if k < 1 or any(level not in ("paper", "paragraph") for level in levels):
@@ -234,8 +254,8 @@ def main(config=ROOT / "configs" / "eval.yaml"):
                 run = Run.from_dict(ranked, name=method)
                 generated[name][level][method] = (run, latency, info, experimental)
 
-                if not experimental and spec.get("save_run", True):
-                    file = RUNS / f"{cfg['team_name']}_{level}_{method}_{name}.tsv"
+                if not experimental and spec.get("save_runs", False):
+                    file = RUNS / f"{cfg['team_name']}_{level}_{kind}_{name}.tsv"
                     file.parent.mkdir(parents=True, exist_ok=True)
                     run.save(str(file), kind="trec")
                     print(f"Saved run: {file.relative_to(ROOT)}", flush=True)
