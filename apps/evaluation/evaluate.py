@@ -16,7 +16,7 @@ from ranx import Qrels, Run, compare, evaluate
 from sentence_transformers import SparseEncoder
 
 from apps.retrieval.dense import search as dense_search
-from apps.retrieval.sparse import search as sparse_search
+from apps.retrieval.sparse import search as sparse_search, warmup
 from apps.utils.sparse import catalog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -237,9 +237,31 @@ def main(config=ROOT / "configs" / "eval.yaml"):
 
             for level, strategy, experimental in calls:
                 if kind == "sparse":
-                    ranked, latency, info = sparse_search(
-                        model, index, level, queries, k, strategy, timed=True,
+                    warmup(index, level, strategy)
+                    ranked = {}
+                    latency = {}
+                    for qid, text in queries:
+                        start = time.perf_counter()
+                        ranked[qid] = sparse_search(model, level, text, k, strategy)
+                        latency[qid] = (time.perf_counter() - start) * 1000
+                    source = (
+                        "papers" if level == "paper" and strategy == "pool"
+                        else "paragraphs"
                     )
+                    files = [
+                        *index.glob(f"{source}_*.npz"),
+                        *index.glob(f"{source}_*_ids.json"),
+                    ]
+                    info = {
+                        "path": (
+                            str(index.relative_to(ROOT))
+                            if index.is_relative_to(ROOT) else str(index)
+                        ),
+                        "source": source,
+                        "strategy": strategy if level == "paper" else "paragraph",
+                        "bytes": sum(path.stat().st_size for path in files),
+                        "files": len(files),
+                    }
                 elif kind == "dense":
                     ranked = {}
                     latency = {}
