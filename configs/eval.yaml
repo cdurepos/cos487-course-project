@@ -10,19 +10,89 @@ k: 100
 models:
   splade-finetuned:
     type: sparse
-    save_runs: true
+    save_id: "sparse"
+    do_test: true
 
   splade-baseline:
     type: sparse
 
-  qwen-finetuned:
+  bge-finetuned-paragraph:
     type: dense
     training: finetuned
-    save_runs: true
+    level: paragraph
+    paragraph_method: crossencoder
+    crossencoder_training: finetuned
+    save_id: "dense"
+    do_test: true
 
-  qwen-pretrained:
+  bge-finetuned-paper:
+    type: dense
+    training: finetuned
+    level: paper
+    paper_method: crossencoder
+    crossencoder_training: finetuned
+    save_id: "dense"
+    do_test: true
+
+  bge-pretrained-paragraph:
+    type: dense
+    training: finetuned
+    level: paragraph
+    paragraph_method: crossencoder
+    crossencoder_training: pretrained
+    save_id: "bge_pretrained"
+
+  bge-pretrained-paper:
+    type: dense
+    training: finetuned
+    level: paper
+    paper_method: crossencoder
+    crossencoder_training: pretrained
+    save_id: "bge_pretrained"
+
+  qwen-finetuned-cosine-similarity:
+    type: dense
+    training: finetuned
+    level: paragraph
+    paragraph_method: cosine_similarity
+    save_id: "qwen_finetuned"
+    do_test: true
+
+  qwen-pretrained-cosine-similarity:
     type: dense
     training: pretrained
+    level: paragraph
+    paragraph_method: cosine_similarity
+    save_id: "qwen_pretrained"
+
+  qwen-finetuned-mean-pooling:
+    type: dense
+    training: finetuned
+    level: paper
+    paper_method: mean_pooling
+    save_id: "qwen_finetuned_mean_pooling"
+
+  qwen-pretrained-mean-pooling:
+    type: dense
+    training: pretrained
+    level: paper
+    paper_method: mean_pooling
+    save_id: "qwen_pretrained_mean_pooling"
+
+  qwen-finetuned-from-paragraphs:
+    type: dense
+    training: finetuned
+    level: paper
+    paper_method: from_paragraphs
+    save_id: "qwen_finetuned_from_paragraphs"
+    do_test: true
+
+  qwen-pretrained-from-paragraphs:
+    type: dense
+    training: pretrained
+    level: paper
+    paper_method: from_paragraphs
+    save_id: "qwen_pretrained_from_paragraphs"
 
 baseline_methods: [bm25]
 stem: true

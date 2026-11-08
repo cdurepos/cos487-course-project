@@ -1,7 +1,13 @@
+"""
+Evaluate neural retrieval; save MaxP runs and compare pooling in memory.
 
-"""Evaluate neural retrieval; save MaxP runs and compare pooling in memory."""
+Usage:
+    python -m apps.evaluation.evaluate [config]
+"""
+
 import json
 import sys
+import time
 from itertools import combinations
 from pathlib import Path
 
@@ -18,23 +24,6 @@ DATA = ROOT / "data"
 RUNS = DATA / "runs"
 OUT = DATA / "evaluation"
 METRICS = ["ndcg", "ndcg@5", "mrr", "precision@5", "precision@10"]
-
-
-def check_saved_runs(cfg):
-    """Allow at most one saved run for each neural model type."""
-    chosen = {}
-    for label, spec in cfg["models"].items():
-        if not spec.get("save_runs", False):
-            continue
-        kind = spec.get("type", "sparse")
-        if kind not in ("sparse", "dense"):
-            raise ValueError(f"{label}: unknown model type {kind!r}")
-        if kind in chosen:
-            raise ValueError(
-                f"save_runs: true is set on more than one {kind} model "
-                f"({chosen[kind]} and {label})"
-            )
-        chosen[kind] = label
 
 
 def evaluate_level(cfg, job, level, queries, generated):
@@ -57,10 +46,10 @@ def evaluate_level(cfg, job, level, queries, generated):
     for method, (run, _, _, experimental) in candidates.items():
         runs[method] = run
         spec = cfg["models"].get(method, {})
-        if not experimental and spec.get("save_runs", False):
-            kind = spec.get("type", "sparse")
+        save_id = spec.get("save_id")
+        if not experimental and save_id:
             paths[method] = str(
-                (RUNS / f"{team}_{level}_{kind}_{name}.tsv").relative_to(ROOT)
+                (RUNS / f"{team}_{level}_{save_id}_{name}.tsv").relative_to(ROOT)
             )
 
     prefix = f"{name}_{level}{'_no-stem' if not stem else ''}"
@@ -190,7 +179,6 @@ def main(config=ROOT / "configs" / "eval.yaml"):
     cfg = yaml.safe_load((file if file.is_absolute() else ROOT / file).read_text())
     if not cfg.get("models") or not cfg.get("sets"):
         raise ValueError("Configure models and query sets")
-    check_saved_runs(cfg)
 
     levels, k = cfg.get("levels", ["paper", "paragraph"]), int(cfg.get("k", 100))
     if k < 1 or any(level not in ("paper", "paragraph") for level in levels):
@@ -231,13 +219,21 @@ def main(config=ROOT / "configs" / "eval.yaml"):
             raise ValueError(f"{label}: unknown model type {kind!r}")
 
         for job in cfg["sets"]:
-            name, queries = job["name"], sets[job["name"]]
+            name = job["name"]
+            if name == "test" and not spec.get("do_test", False):
+                continue
+            queries = sets[name]
             if kind == "sparse":
                 calls = [(level, "maxp", False) for level in levels]
                 if job["metrics"] and "paper" in levels:
                     calls.append(("paper", "pool", True))
             else:
-                calls = [(level, None, False) for level in levels]
+                level = spec.get("level")
+                if level not in ("paper", "paragraph"):
+                    raise ValueError(f"{label}: dense models must specify level as 'paper' or 'paragraph'")
+                if level not in levels:
+                    raise ValueError(f"{label}: configured level {level!r} is not included in evaluation levels {levels}")
+                calls = [(level, None, False)]
 
             for level, strategy, experimental in calls:
                 if kind == "sparse":
@@ -245,21 +241,33 @@ def main(config=ROOT / "configs" / "eval.yaml"):
                         model, index, level, queries, k, strategy, timed=True,
                     )
                 elif kind == "dense":
-                    ranked = {
-                        qid: dict(dense_search(text, spec["training"], level, k))
-                        for qid, text in queries
-                    }
-                    latency, info = {}, {}
+                    ranked = {}
+                    latency = {}
+                    info = {}
+                    for qid, text in queries:
+                        start = time.perf_counter()
+                        results = dense_search(
+                            query=text,
+                            training=spec["training"],
+                            level=level,
+                            paper_method=spec.get("paper_method"),
+                            paragraph_method=spec.get("paragraph_method"),
+                            crossencoder_training=spec.get("crossencoder_training"),
+                            k=k,
+                        )
+                        latency[qid] = (time.perf_counter() - start) * 1000
+                        ranked[qid] = dict(results)
+
                 method = f"{label}-pool" if experimental else label
                 run = Run.from_dict(ranked, name=method)
                 generated[name][level][method] = (run, latency, info, experimental)
 
-                if not experimental and spec.get("save_runs", False):
-                    file = RUNS / f"{cfg['team_name']}_{level}_{kind}_{name}.tsv"
+                save_id = spec.get("save_id")
+                if not experimental and save_id:
+                    file = RUNS / f"{cfg['team_name']}_{level}_{save_id}_{name}.tsv"
                     file.parent.mkdir(parents=True, exist_ok=True)
                     run.save(str(file), kind="trec")
                     print(f"Saved run: {file.relative_to(ROOT)}", flush=True)
-
         del model
 
     for job in cfg["sets"]:
