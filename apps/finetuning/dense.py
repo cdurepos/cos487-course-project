@@ -38,7 +38,6 @@ LORA_RANK = 16
 LORA_ALPHA = 32
 LORA_DROPOUT = 0.05
 EVAL_DOCUMENTS = 100000
-MAX_TRAIN_QUERIES = None
 
 
 prepare_query = lambda query: f"Instruct: {INSTRUCTION}\nQuery: {query}"
@@ -428,80 +427,6 @@ def build_fixed_eval_corpus(
     return eval_docs
 
 
-def retrieval_metrics(
-    scores,
-    query_ids,
-    candidate_pids,
-    qrels,
-):
-    """
-    Compute:
-      nDCG@10 (graded relevance)
-      MRR@10 (first relevant result within top 10)
-      MAP (average precision over the ranking)
-      P@10 (binary relevance)
-      Recall@100 (binary relevance)
-    """
-    pid_to_col = {pid: i for i, pid in enumerate(candidate_pids)}
-    metrics = {
-        "ndcg@10": [],
-        "mrr@10": [],
-        "map": [],
-        "p@10": [],
-        "recall@100": [],
-    }
-    for row, qid in enumerate(query_ids):
-        judged = {pid: grade for pid, grade in qrels[qid].items() if pid in pid_to_col}
-        if not judged:
-            continue
-
-        ranking_indices = np.argsort(-scores[row])
-        ranking_pids = [candidate_pids[i] for i in ranking_indices]
-        relevant_set = set(judged.keys())
-
-        # ndcg@10
-        dcg = 0.0
-        for rank, pid in enumerate(ranking_pids[:10], 1):
-            grade = judged.get(pid, 0.0)
-            gain = (2.0 ** grade) - 1.0
-            dcg += gain / math.log2(rank + 1)
-
-        ideal_grades = sorted(judged.values(), reverse=True)[:10]
-        idcg = sum(((2.0 ** grade) - 1.0) / math.log2(rank + 1) for rank, grade in enumerate(ideal_grades, 1))
-        ndcg = dcg / idcg if idcg > 0 else 0.0
-
-        # MRR@10.
-        reciprocal_rank = 0.0
-        for rank, pid in enumerate(ranking_pids[:10], 1):
-            if pid in relevant_set:
-                reciprocal_rank = 1.0 / rank
-                break
-        num_relevant_seen = 0
-        precision_sum = 0.0
-
-        for rank, pid in enumerate(ranking_pids, 1):
-            if pid in relevant_set:
-                num_relevant_seen += 1
-                precision_sum += num_relevant_seen / rank
-        average_precision = (precision_sum / len(relevant_set) if relevant_set else 0.0)
-
-        # P@10
-        top10 = ranking_pids[:10]
-        p_at_10 = (sum(pid in relevant_set for pid in top10) / 10.0)
-
-        # Recall@100.
-        top100 = ranking_pids[:100]
-        recall_at_100 = (sum(pid in relevant_set for pid in top100) / len(relevant_set))
-
-        metrics["ndcg@10"].append(ndcg)
-        metrics["mrr@10"].append(reciprocal_rank)
-        metrics["map"].append(average_precision)
-        metrics["p@10"].append(p_at_10)
-        metrics["recall@100"].append(recall_at_100)
-
-    return {name: float(np.mean(values)) if values else 0.0 for name, values in metrics.items()}
-
-
 def main():
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA GPU is required for this QLoRA script.")
@@ -551,7 +476,6 @@ def main():
 
     eval_docs = build_fixed_eval_corpus(CORPUS_DIR, pid_to_text, EVAL_DOCUMENTS, SEED)
     eval_pids = list(eval_docs.keys())
-    eval_texts = [eval_docs[pid] for pid in eval_pids]
 
     model, tokenizer = load_quantized_model(MODEL_NAME, use_4bit=True)
     model = add_lora(model, LORA_RANK, LORA_ALPHA, LORA_DROPOUT)

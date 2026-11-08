@@ -11,3 +11,5 @@ numpy==2.2.0
 accelerate==1.15.0
 bitsandbytes==0.50.2
 sentencepiece==0.2.2
+matplotlib==3.11.2
+FlagEmbedding==1.4.2
