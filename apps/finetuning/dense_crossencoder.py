@@ -40,9 +40,6 @@ CHECKPOINTS_DIR = OUTPUT_DIR / "checkpoints"
 BEST_MODEL_DIR = OUTPUT_DIR / "best_model"
 CACHE_DIR = OUTPUT_DIR / "cache"
 
-CANDIDATE_K = 100
-MAX_CANDIDATE_K = 10000
-
 MODEL_MAX_LENGTH = 512
 QUERY_MAX_LENGTH = 256
 PASSAGE_MAX_LENGTH = 512
@@ -276,29 +273,6 @@ def score_pairs(
     if isinstance(scores, (int, float)):
         return [float(scores)]
     return [float(score) for score in scores]
-
-
-def score_paragraph_ids(
-    reranker,
-    query: str,
-    paragraph_ids: Sequence[str],
-    corpus: Mapping[str, str],
-    batch_size: int,
-    max_length: int,
-):
-    paragraph_ids = [
-        str(paragraph_id)
-        for paragraph_id in paragraph_ids
-        if str(paragraph_id) in corpus
-    ]
-    pairs = [(query, corpus[paragraph_id]) for paragraph_id in paragraph_ids]
-    scores = score_pairs(
-        reranker,
-        pairs,
-        batch_size=batch_size,
-        max_length=max_length,
-    )
-    return {paragraph_id: float(score) for paragraph_id, score in zip(paragraph_ids, scores)}
 
 
 def checkpoint_candidates(
