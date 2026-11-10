@@ -15,9 +15,9 @@ All settings, including which sets get metrics and the team name used in output 
 
 Sparse models in that file are loaded through `configs/sparse.yaml`. 
 
-The script encodes each query and searches the model's index. A model writes a TREC run only when it sets `save_runs: true`. For project requirements, at most one sparse model and one dense model may set that flag. Models without `save_runs: true` are scored the same way and do not get a TREC file.
+The script encodes each query and searches the model's index. A model writes a TREC run only when it has the `save_id` key. Models without `save_id: run_name` are scored the same way, but do not write to a TREC file.
 
-The committed config retrieves Study and Test. Study has `metrics: true`, including systems performance. Test writes runs only, for annotation or any other use of the ranked results. A missing qrel file is an error when `metrics` is true.
+The committed config retrieves Study and Test. Study has `metrics: true`, including systems performance. Test writes runs only, for annotation or any other use of the ranked results. Test retrieval is only performed by the models with `do_test: true`. A missing qrel file is an error when `metrics` is true.
 
 ## Metrics
 
@@ -63,7 +63,7 @@ Systems performance is recorded only for sets with `metrics: true`. In the commi
 | Per-query metrics | `data/evaluation/<set>_<level>_queries.json` |
 | Significance report | `data/evaluation/<set>_<level>_significance.json` |
 
-Runs use the standard 6-column TREC format: `qid Q0 docid rank score run_tag`. The saved model of each type writes one file per level and query set:
+Runs use the standard 6-column TREC format: `qid Q0 docid rank score run_tag`.
 
 - `<team>_paper_dense_<set>.tsv`
 - `<team>_paragraph_dense_<set>.tsv`
