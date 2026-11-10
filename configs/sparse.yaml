@@ -1,0 +1,7 @@
+splade-finetuned:
+  checkpoint: models/splade-finetuned
+  index: data/indexes/splade-finetuned
+
+splade-baseline:
+  checkpoint: naver/splade-v3
+  index: data/indexes/splade-baseline

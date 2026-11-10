@@ -1,5 +1,5 @@
 # COS487 Information Retrieval - Course Project
-This is a repository intended to host the soon-to-be developed code for the course project assigned in COS487 Information Retrieval at the University of Southern Maine.
+Search Party's course project for COS487 Information Retrieval at the University of Southern Maine. The repository holds the search interface and the retrieval experiments.
 
 ## Team Details
 Name: Search Party
@@ -7,26 +7,20 @@ Name: Search Party
 Members:
 - Clayton Durepos (Contact)
 - Ella Hawkins
-- Jack Bergin
-- Grace Kalonji
 
 ## Repository Structure
 Each part of the project has its own folder under `apps/`.
 
 ```text
-data/                  Project data (corpus, processed tokens, indexes)
+data/                  Corpus, queries, qrels, indexes, and runs
+configs/               Evaluation settings and sparse model paths
 bin/                   Install and run scripts
 apps/
-├── processing/        Scripts for pre-processing data
-├── retrieval/         Retrieval systems and index script
-├── evaluation/        Evaluation scripts
-├── prod/
-    ├── backend/           Search service backend
-    └── frontend/          Search interface
-        └── src/
-            ├── api/         Files for API-related functions
-            ├── components/  UI components
-            └── hooks/       Shared browser-side state, such as recent searches
+├── finetuning/        SPLADE fine-tuning
+├── indexing/          Sparse and dense index builders
+├── retrieval/         Sparse and dense search
+├── evaluation/        Run retrieval and score the results
+├── utils/             Shared sparse encoding, paths, and index shards
 ```
 
 ## Use Guide
@@ -37,23 +31,20 @@ Users must download COS487 Information Retrieval course data files. For installa
 data/
 ├── JSON Files/     Unzipped data corpus
 ├── qrels/          QREL files
+├── Train.json
 ├── Study.json
 └── Test.json
 ```
 
 ### Quick Run
-To launch this application on Linux or MacOS, first set up the data (as outlined above). Then, run the following commands in a bash terminal from the repository root. By default, the backend runs on `localhost:8000` and the frontend runs on `localhost:5173`.
+To launch this application on Linux or MacOS, first set up the data (as outlined above). Then, run the following commands in a bash terminal from the repository root.
+
+Edit `configs/eval.yaml` to change query sets, metrics, levels, and stemming. Sparse checkpoint and index paths are in `configs/sparse.yaml`. See `apps/evaluation/README.md` for more details.
 
 To set up environment and install dependencies:
 
 ```bash
 bash bin/install.sh
-```
-
-`bin/run.sh` takes the mode to run as its first argument. To launch the search interface:
-
-```bash
-bash bin/run.sh --prod
 ```
 
 To run the research pipeline:
@@ -62,9 +53,6 @@ To run the research pipeline:
 bash bin/run.sh --eval
 ```
 
-Edit `apps/evaluation/config.yaml` to change query sets, metrics, levels, and stemming.
-See `apps/evaluation/README.md` for more details.
-
 ### Manual Run
 Install Python dependencies once from the repository root:
 
@@ -72,27 +60,16 @@ Install Python dependencies once from the repository root:
 pip install -r requirements.txt
 ```
 
-##### Environment Build
-```bash
-python -m apps.processing.preprocess
-python -m apps.retrieval.index
-```
-
-##### Backend
-From the repository root:
+##### Sparse Retrieval
+From the repository root, with dependencies installed:
 
 ```bash
-uvicorn apps.prod.backend.main:app --reload --port 8000
+python -m apps.finetuning.sparse
+python -m apps.indexing.sparse
+python -m apps.evaluation.evaluate
 ```
 
-##### Frontend
-In a second terminal:
-
-```bash
-cd apps/prod/frontend
-npm install
-npm run dev
-```
+Fine-tuning writes the SPLADE checkpoint. Indexing builds the paragraph and paper indexes from `configs/sparse.yaml`. Evaluation searches those indexes and writes runs and metrics. Details are in the READMEs under `apps/finetuning/`, `apps/indexing/`, `apps/retrieval/`, and `apps/utils/`.
 
 ##### Evaluation
 ```bash
@@ -105,23 +82,13 @@ python -m apps.evaluation.evaluate
 
 #### Clayton Durepos
 
-- Backend System Architecture and Code
+- Sparse Neural Model Experiment Code: 
+`finetuning/sparse.py`, `indexing/sparse.py`, `retrieval/sparse.py` 
 - Evaluation Pipeline
-- `run.sh` branching for `--prod` and `--eval`
-- Post-Integration Frontend Design
+`evaluation/evaluate.py`
 
 #### Ella Hawkins
 
 - Indexer Component
 - BM25 System
 - `install.sh`, `run.sh`
-
-#### Grace Kalonji
-
-- TF-IDF System
-- Frontend Design
-
-#### Jack Bergin
-
-- Preprocessor System
-- Frontend Construction

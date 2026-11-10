@@ -1,6 +1,6 @@
 # Evaluation
 
-Runs the retrieval systems on every query set in `config.yaml`. Each set writes TREC run files. Sets with `metrics: true` are measured against qrels using [ranx](https://github.com/AmenRa/ranx) and record systems performance. Sets with `metrics: false` write runs only.
+Runs the retrieval systems on every query set in `configs/eval.yaml`. Each set writes TREC run files. Sets with `metrics: true` are measured against qrels using [ranx](https://github.com/AmenRa/ranx) and record systems performance. Sets with `metrics: false` write runs only.
 
 ## Run
 
@@ -11,7 +11,11 @@ pip install -r requirements.txt
 python -m apps.evaluation.evaluate
 ```
 
-All settings, including which sets get metrics and the team name used in output filenames, are in `config.yaml`. Edit that file, then re-run.
+All settings, including which sets get metrics and the team name used in output filenames, are in `configs/eval.yaml`. Edit that file, then re-run.
+
+Sparse models in that file are loaded through `configs/sparse.yaml`. 
+
+The script encodes each query and searches the model's index. A model writes a TREC run only when it sets `save_runs: true`. For project requirements, at most one sparse model and one dense model may set that flag. Models without `save_runs: true` are scored the same way and do not get a TREC file.
 
 The committed config retrieves Study and Test. Study has `metrics: true`, including systems performance. Test writes runs only, for annotation or any other use of the ranked results. A missing qrel file is an error when `metrics` is true.
 
@@ -54,15 +58,20 @@ Systems performance is recorded only for sets with `metrics: true`. In the commi
 
 | Output | Location |
 |--------|----------|
-| TREC runs | `data/runs/<team>_<level>_<method>_<set>.tsv` |
+| TREC runs | `data/runs/<team>_<level>_<sparse\|dense>_<set>.tsv` |
 | Metric summary | `data/evaluation/<set>_<level>.json` |
 | Per-query metrics | `data/evaluation/<set>_<level>_queries.json` |
 | Significance report | `data/evaluation/<set>_<level>_significance.json` |
 
-Runs use the standard 6-column TREC format: `qid Q0 docid rank score run_tag`.
+Runs use the standard 6-column TREC format: `qid Q0 docid rank score run_tag`. The saved model of each type writes one file per level and query set:
+
+- `<team>_paper_dense_<set>.tsv`
+- `<team>_paragraph_dense_<set>.tsv`
+- `<team>_paper_sparse_<set>.tsv`
+- `<team>_paragraph_sparse_<set>.tsv`
 
 Stemming is the default. Setting `stem: false` writes `_no-stem` files.
 
 ## Quick smoke test
 
-In `config.yaml`, set `limit: 10`, run once, then set `limit` back to `null`. The limit applies to every set.
+In `configs/eval.yaml`, set `limit: 10`, run once, then set `limit` back to `null`. The limit applies to every set.
