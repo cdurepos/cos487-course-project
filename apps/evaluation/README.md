@@ -7,7 +7,6 @@ Runs the retrieval systems on every query set in `configs/eval.yaml`. Each set w
 From the repository root:
 
 ```bash
-pip install -r requirements.txt
 python -m apps.evaluation.evaluate
 ```
 
