@@ -91,15 +91,10 @@ def evaluate_level(cfg, job, level, queries, generated):
             )
             means[method] = {m: float(values[m]) for m in metrics}
 
-            # Only primary runs receive detailed query-level analysis.
-            if method not in candidates or (
-                not candidates[method][3]
-                and cfg["models"].get(method, {}).get("save_runs", False)
-            ):
-                for m in metrics:
-                    for qid, score in run.scores[m].items():
-                        if qid in detailed:
-                            detailed[qid].setdefault(method, {})[m] = float(score)
+            for m in metrics:
+                for qid, score in run.scores[m].items():
+                    if qid in detailed:
+                        detailed[qid].setdefault(method, {})[m] = float(score)
 
             print(f"  {name}/{level}/{key} {method}: {means[method]}", flush=True)
 
