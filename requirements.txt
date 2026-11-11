@@ -1,5 +1,3 @@
-fastapi>=0.115
-uvicorn[standard]>=0.32
 ranx>=0.3
 PyYAML>=6.0
 torch==2.9.0

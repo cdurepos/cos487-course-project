@@ -32,12 +32,10 @@ EPOCHS = 10
 BATCH_SIZE = 4
 GRAD_ACCUM = 4
 MAX_LENGTH = 512
-ENCODE_BATCH_SIZE = 4
 LEARNING_RATE = 1e-5
 LORA_RANK = 16
 LORA_ALPHA = 32
 LORA_DROPOUT = 0.05
-EVAL_DOCUMENTS = 100000
 
 
 prepare_query = lambda query: f"Instruct: {INSTRUCTION}\nQuery: {query}"
@@ -388,45 +386,6 @@ def evaluate_validation_loss(
     return average_loss
 
 
-def build_fixed_eval_corpus(
-    corpus_dir,
-    judged_texts,
-    target_size,
-    seed,
-):
-    """Include all judged documents, then sample additional documents to reach the target size"""
-    eval_docs = dict(judged_texts)
-    if len(eval_docs) >= target_size:
-        print(f"[eval-corpus] {len(eval_docs)} judged documents already meet/exceed target size {target_size}; keeping all.")
-        return eval_docs
-    needed_random = target_size - len(eval_docs)
-
-    seen_ids = set(eval_docs.keys())
-    reservoir = []
-    eligible_seen = 0
-    rng = random.Random(seed)
-    print(f"[eval-corpus] Keeping {len(eval_docs)} judged documents. Sampling up to {needed_random} additional documents...")
-
-    for pid, text in iter_corpus(corpus_dir):
-        if pid in seen_ids:
-            continue
-        seen_ids.add(pid)
-        eligible_seen += 1
-        if len(reservoir) < needed_random:
-            reservoir.append((pid, text))
-        else:
-            j = rng.randrange(eligible_seen)
-            if j < needed_random:
-                reservoir[j] = (pid, text)
-
-    for pid, text in reservoir:
-        eval_docs[pid] = text
-    print(f"[eval-corpus] Final size: {len(eval_docs)} documents ({len(judged_texts)} judged + {len(reservoir)} sampled).")
-    if len(eval_docs) < target_size:
-        print(f"[warn] Corpus contained fewer unique documents than the requested evaluation size of {target_size}.")
-    return eval_docs
-
-
 def main():
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA GPU is required for this QLoRA script.")
@@ -474,9 +433,6 @@ def main():
     print(f"[data] Validation judged-positive pairs: {sum(len(x) for x in val_qrels.values())}")
     print(f"[data] Missing judged document IDs: {len(missing_ids)}")
 
-    eval_docs = build_fixed_eval_corpus(CORPUS_DIR, pid_to_text, EVAL_DOCUMENTS, SEED)
-    eval_pids = list(eval_docs.keys())
-
     model, tokenizer = load_quantized_model(MODEL_NAME, use_4bit=True)
     model = add_lora(model, LORA_RANK, LORA_ALPHA, LORA_DROPOUT)
     device = next(model.parameters()).device
@@ -488,7 +444,7 @@ def main():
         tokenizer,
         all_train_query_inputs,
         MAX_LENGTH,
-        ENCODE_BATCH_SIZE,
+        BATCH_SIZE,
         device,
     )
     query_vectors = {qid: base_vecs[i] for i, qid in enumerate(train_qids)}
