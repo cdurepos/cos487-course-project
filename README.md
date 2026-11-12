@@ -88,20 +88,34 @@ python -m apps.evaluation.evaluate
 
 Performs retrieval and evaluation based on the settings in `configs/eval.yaml`. See `apps/evaluation/README.md` for more details.
 
-## Course Required Documentation
+## Team Member Contributions
 
-### Team Member Contributions
+### Clayton Durepos
 
-#### Clayton Durepos
+#### Project Code
 
 - Sparse Neural Model Experiment Code: 
 `finetuning/sparse.py`, `indexing/sparse.py`, `retrieval/sparse.py` 
 - Evaluation Pipeline
 `evaluation/evaluate.py`
 
-#### Ella Hawkins
+#### Project Report
+- Introduction
+- Sparse Model Methodology
+- Evaluation Methodology
+- Results
+
+###  Ella Hawkins
+
+#### Project Code
 
 - Dense Neural Model Experiment Code:
 `finetuning/dense.py`, `finetuning/dense_crossencoder.py`, `indexing/dense.py`, `retrieval/dense.py`
 - Bash Scripts
 `install.sh`, `run.sh`
+
+#### Project Report
+- Abstract
+- Dense Model Methodology
+- Analysis
+- Conclusion
