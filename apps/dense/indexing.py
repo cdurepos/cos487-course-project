@@ -3,7 +3,7 @@ Encodes paragraphs using the Qwen-8B model and saves the embeddings to a compres
 Also encodes paper-level embeddings by mean pooling paragraph embeddings, title embedding, and abstract embedding.
 
 Usage:
-    python -m apps.indexing.dense
+    python -m apps.dense.indexing
 """
 
 
@@ -16,17 +16,11 @@ import json
 import os
 import torch
 
+from apps.utils import CORPUS_DIR, MODEL_DIR, INDEX_MAP
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "data" / "JSON Files"
+
 MODEL = "Qwen/Qwen3-Embedding-0.6B"
-FINETUNED_ADAPTER = ROOT / "models" / "qwen" / "best_adapter"
-
-EMBEDDINGS_PATH = ROOT / "data" / "indexes" / "qwen_pretrained.npz"
-EMBEDDINGS_PATH_PAPERS = ROOT / "data" / "indexes" / "qwen_pretrained_papers.npz"
-
-FINETUNED_EMBEDDINGS_PATH = ROOT / "data" / "indexes" / "qwen_finetuned.npz"
-FINETUNED_EMBEDDINGS_PATH_PAPERS = ROOT / "data" / "indexes" / "qwen_finetuned_papers.npz"
+FINETUNED_ADAPTER = MODEL_DIR / "finetuned_qwen"
 
 
 parser = argparse.ArgumentParser()
@@ -48,9 +42,9 @@ def load_paragraphs():
     Returns a dictionary mapping paragraph IDs to their text.
     """
     paragraphs = {}
-    for json_file in os.listdir(DATA):
+    for json_file in os.listdir(CORPUS_DIR):
         if json_file.endswith(".json"):
-            with open(DATA / json_file, "r") as f:
+            with open(CORPUS_DIR / json_file, "r") as f:
                 paper = json.load(f)
                 if "paragraphs" not in paper:
                     continue
@@ -242,10 +236,10 @@ def get_paper_embeddings(paragraph_embeddings_path, save_path, force=False):
     paper_embeddings = []
     print("Generating paper-level embeddings...")
 
-    for json_file in tqdm(os.listdir(DATA)):
+    for json_file in tqdm(os.listdir(CORPUS_DIR)):
         if not json_file.endswith(".json"):
             continue
-        with open(DATA / json_file, "r") as f:
+        with open(CORPUS_DIR / json_file, "r") as f:
             paper = json.load(f)
         embedding = encode_paper(
             paper,
@@ -283,14 +277,14 @@ if __name__ == '__main__':
 
     if pretrained:
         if paragraphs:
-            get_embeddings(EMBEDDINGS_PATH, force=force)
+            get_embeddings(INDEX_MAP["pretrained_paragraph"], force=force)
         if papers:
-            get_paper_embeddings(EMBEDDINGS_PATH, EMBEDDINGS_PATH_PAPERS, force=force)
+            get_paper_embeddings(INDEX_MAP["pretrained_paragraph"], INDEX_MAP["pretrained_paper"], force=force)
     if finetuned:
         embedder.load_adapter(FINETUNED_ADAPTER)
         embedder.eval()
         print(f"Loaded finetuned adapter from {FINETUNED_ADAPTER}.")
         if paragraphs:
-            get_embeddings(FINETUNED_EMBEDDINGS_PATH, force=force)
+            get_embeddings(INDEX_MAP["finetuned_paragraph"], force=force)
         if papers:
-            get_paper_embeddings(FINETUNED_EMBEDDINGS_PATH, FINETUNED_EMBEDDINGS_PATH_PAPERS, force=force)
+            get_paper_embeddings(INDEX_MAP["finetuned_paragraph"], INDEX_MAP["finetuned_paper"], force=force)

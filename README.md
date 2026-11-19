@@ -13,14 +13,12 @@ Each part of the project has its own folder under `apps/`.
 
 ```text
 data/                  Corpus, queries, qrels, indexes, and runs
-configs/               Evaluation settings and sparse model paths
+configs/               Evaluation settings
 bin/                   Install and run scripts
 apps/
-├── finetuning/        SPLADE fine-tuning
-├── indexing/          Sparse and dense index builders
-├── retrieval/         Sparse and dense search
+├── dense/             Qwen fine-tuning, indexing, and search
 ├── evaluation/        Run retrieval and score the results
-├── utils/             Shared sparse encoding, paths, and index shards
+└── utils.py           Paths shared by more than one module
 ```
 
 ## Use Guide
@@ -39,7 +37,7 @@ data/
 ### Quick Run
 To launch this application on Linux or MacOS, first set up the data (as outlined above). Then, run the following commands in a bash terminal from the repository root.
 
-Edit `configs/eval.yaml` to change query sets, metrics, levels, and stemming. Sparse checkpoint and index paths are in `configs/sparse.yaml`. See `apps/evaluation/README.md` for more details.
+Edit `configs/eval.yaml` to change query sets, metrics, levels, and which Qwen runs to score. See `apps/evaluation/README.md` for more details.
 
 To set up environment and install dependencies:
 
@@ -47,11 +45,13 @@ To set up environment and install dependencies:
 bash bin/install.sh
 ```
 
-To run the research pipeline:
+To run retrieval and evaluation:
 
 ```bash
 bash bin/run.sh --eval
 ```
+
+`bash bin/run.sh --prod` starts the search interface.
 
 ### Manual Run
 Install Python dependencies once from the repository root:
@@ -60,21 +60,22 @@ Install Python dependencies once from the repository root:
 pip install -r requirements.txt
 ```
 
-##### Sparse Retrieval
+##### Dense Retrieval
 From the repository root, with dependencies installed:
 
 ```bash
-python -m apps.finetuning.sparse
-python -m apps.indexing.sparse
-python -m apps.evaluation.evaluate
+python -m apps.dense.finetune
+python -m apps.dense.indexing
 ```
 
-Fine-tuning writes the SPLADE checkpoint. Indexing builds the paragraph and paper indexes from `configs/sparse.yaml`. Evaluation searches those indexes and writes runs and metrics. Details are in the READMEs under `apps/finetuning/`, `apps/indexing/`, `apps/retrieval/`, and `apps/utils/`.
+Fine-tuning writes the Qwen adapter under `models/finetuned_qwen`. Indexing builds the paragraph and paper indexes for the pre-trained and fine-tuned models. See `apps/dense/README.md`.
 
 ##### Evaluation
 ```bash
 python -m apps.evaluation.evaluate
 ```
+
+Performs retrieval and evaluation based on the settings in `configs/eval.yaml`. See `apps/evaluation/README.md` for more details.
 
 ## Course Required Documentation
 
@@ -82,13 +83,11 @@ python -m apps.evaluation.evaluate
 
 #### Clayton Durepos
 
-- Sparse Neural Model Experiment Code: 
-`finetuning/sparse.py`, `indexing/sparse.py`, `retrieval/sparse.py` 
-- Evaluation Pipeline
-`evaluation/evaluate.py`
+- Part 2 sparse experiments (removed for Part 3)
+- Evaluation pipeline: `evaluation/evaluate.py`
 
 #### Ella Hawkins
 
-- Indexer Component
-- BM25 System
+- Dense model code: `dense/finetune.py`, `dense/indexing.py`, `dense/retrieval.py`
+- Indexer component and BM25 system
 - `install.sh`, `run.sh`

@@ -5,7 +5,7 @@ for fine-tuning the qlora adapter for the qwen model, and for fine-tuning the bg
 Writes to loss_diagram.pdf in each model's outputs directory
 
 Usage:
-    python -m apps.finetuning.create_dense_loss_diagram
+    python -m apps.dense.create_dense_loss_diagram
 """
 
 import matplotlib
