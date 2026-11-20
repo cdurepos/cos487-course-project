@@ -28,10 +28,28 @@ Question: {query}
 """
 
 PROMPT_INTENT_MULTI = """
-Read the research question and identify its {k} most likely intents, most likely first.
+Read the research question and identify its {i} most likely intents, most likely first.
 Write one well-suited retrieval query for each intent. The queries must target different information needs.
 Keep the scientific terms that identify the topic. Do not answer the question.
-Return exactly {k} lines, one query per line, with no numbering or explanation.
+Return exactly {i} lines, one query per line. No numbering or explanation.
 
 Question: {query}
 """
+
+PROMPT_INTENT_LIKELIHOOD = """
+Read the research question and identify its {i} most likely intents, most likely first.
+Write one well-suited retrieval query for each intent, and the likelihood that this intent is what the user wants.
+The likelihoods are decimals between 0 and 1 that sum to 1, used as query weights. The queries must target different information needs.
+Keep the scientific terms that identify the topic. Do not answer the question.
+Return exactly {i} lines. Each line is the likelihood and the query, separated by a single tab. No numbering or explanation.
+
+Question: {query}
+"""
+
+PROMPT_MAP = {
+    # "original":                        # for original query content based retrieval (e.g. rewrite, expansion)
+    # "answer":                          # for answer based retrieval
+    "dominant": PROMPT_INTENT_DOMINANT,
+    "multi": PROMPT_INTENT_MULTI,
+    "likelihood": PROMPT_INTENT_LIKELIHOOD
+}
