@@ -13,11 +13,10 @@ Each part of the project has its own folder under `apps/`.
 
 ```text
 data/                  Corpus, queries, qrels, indexes, and runs
-configs/               Evaluation settings
 bin/                   Install and run scripts
 apps/
 ├── dense/             Qwen fine-tuning, indexing, and search
-├── evaluation/        Run retrieval and score the results
+├── evaluate.py        Run retrieval and score the results
 └── utils.py           Paths shared by more than one module
 ```
 
@@ -36,8 +35,6 @@ data/
 
 ### Quick Run
 To launch this application on Linux or MacOS, first set up the data (as outlined above). Then, run the following commands in a bash terminal from the repository root.
-
-Edit `configs/eval.yaml` to change query sets, metrics, levels, and which Qwen runs to score. See `apps/evaluation/README.md` for more details.
 
 To set up environment and install dependencies:
 
@@ -72,10 +69,10 @@ Fine-tuning writes the Qwen adapter under `models/finetuned_qwen`. Indexing buil
 
 ##### Evaluation
 ```bash
-python -m apps.evaluation.evaluate
+python -m apps.evaluate
 ```
 
-Performs retrieval and evaluation based on the settings in `configs/eval.yaml`. See `apps/evaluation/README.md` for more details.
+Runs the plain Qwen query and every prompt in `PROMPT_MAP` on Study and Test. Study is scored against the qrels.
 
 ## Course Required Documentation
 

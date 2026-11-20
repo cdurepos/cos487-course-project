@@ -16,7 +16,7 @@ _model = None
 _assistant = None
 _processor = None
 
-def retrieve(query, approach=None, training="finetuned", level="paragraph", k=100, i=3):
+def retrieve(query, approach=None, level="paragraph", k=100, i=3):
     """Return the top-k (doc id, score) pairs for one research question."""
     global _model, _assistant, _processor
     # Load Gemma once and reuse it for every question.
@@ -66,7 +66,7 @@ def retrieve(query, approach=None, training="finetuned", level="paragraph", k=10
 
     # Paper search always uses the paper's best paragraph.
     rankings = [
-        search(line, training=training, level=level, paper_method="from_paragraphs", k=k)
+        search(line, training="finetuned", level=level, paper_method="from_paragraphs", k=k)
         for _, line in parsed
     ]
     # One query keeps the Qwen scores.
