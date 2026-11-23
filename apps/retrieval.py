@@ -17,7 +17,7 @@ _assistant = None
 _processor = None
 
 def retrieve(query, approach=None, level="paragraph", k=100, i=3):
-    """Return the top-k (doc id, score) pairs for one research question."""
+    """Return the generated query and the top-k (doc id, score) pairs for one research question."""
     global _model, _assistant, _processor
     # Load Gemma once and reuse it for every question.
     if _model is None:
@@ -58,6 +58,9 @@ def retrieve(query, approach=None, level="paragraph", k=100, i=3):
             parsed = [(weight / total, line) for weight, line in parsed]
     elif approach == "multi":
         parsed = [(1.0, line) for line in lines]
+    elif approach and "expansion" in approach:
+        text = query + " " + text
+        parsed = [(1.0, text)]
     else:
         # One passage: rewrite, dominant intent, or a generated answer.
         parsed = [(1.0, " ".join(text.split()))]
@@ -71,11 +74,11 @@ def retrieve(query, approach=None, level="paragraph", k=100, i=3):
     ]
     # One query keeps the Qwen scores.
     if len(rankings) == 1:
-        return rankings[0]
+        return text, rankings[0]
 
     # Several queries: reciprocal rank fusion. Multi-intent weights are all 1.
     fused = {}
     for (weight, _), ranking in zip(parsed, rankings):
         for rank, (doc_id, _) in enumerate(ranking, start=1):
             fused[doc_id] = fused.get(doc_id, 0.0) + weight / (60 + rank)
-    return sorted(fused.items(), key=lambda item: item[1], reverse=True)[:k]
+    return text, sorted(fused.items(), key=lambda item: item[1], reverse=True)[:k]

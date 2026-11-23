@@ -8,6 +8,7 @@ Usage:
 import json
 import time
 from itertools import combinations
+from tqdm import tqdm
 
 from ranx import Qrels, Run, compare, evaluate
 
@@ -15,6 +16,7 @@ from apps.retrieval import retrieve
 from apps.utils import DATA_DIR, EVAL_DIR, PROMPT_MAP, QRELS_DIR, ROOT_DIR
 
 RUN_DIR = DATA_DIR / "runs"
+QUERIES_DIR = DATA_DIR / "queries"
 LEVELS = ("paper", "paragraph")
 K = 100
 METRICS = ["ndcg", "ndcg@5", "mrr", "precision@5", "precision@10"]
@@ -136,10 +138,12 @@ def main():
     for label, approach in approaches:
         for name, queries in sets.items():
             for level in LEVELS:
-                ranked, latency = {}, {}
-                for qid, text in queries:
+                gen_queries, ranked, latency = {}, {}, {}
+                for qid, text in tqdm(queries, desc=f"Generating queries for {name}/{level}/{label}"):
                     start = time.perf_counter()
-                    ranked[qid] = dict(retrieve(text, approach=approach, level=level, k=K))
+                    query, results = retrieve(text, approach=approach, level=level, k=K)
+                    ranked[qid] = dict(results)
+                    gen_queries[qid] = query
                     latency[qid] = (time.perf_counter() - start) * 1000
 
                 run = Run.from_dict(ranked, name=label)
@@ -149,6 +153,12 @@ def main():
                 file.parent.mkdir(parents=True, exist_ok=True)
                 run.save(str(file), kind="trec")
                 print(f"Saved run: {file.relative_to(ROOT_DIR)}", flush=True)
+
+                queries_file = QUERIES_DIR / f"queries_{level}_{label}_{name}.json"
+                queries_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(queries_file, "w") as file:
+                    json.dump(gen_queries, file, indent=2)
+                print(f"Saved queries: {queries_file.relative_to(ROOT_DIR)}", flush=True)
 
     for level in LEVELS:
         evaluate_level("study", level, sets["study"], generated["study"][level])
