@@ -9,8 +9,6 @@ set -euo pipefail
 #   2. Finds or installs a working Conda installation.
 #   3. Creates the 'cos487_env' Conda environment with Python 3.12.
 #   4. Installs dependencies.
-#   5. Preprocesses the application data.
-#   6. Creates the retrieval indexes.
 #
 # Supported platforms:
 #   - macOS
@@ -20,18 +18,20 @@ set -euo pipefail
 # - Download course data files and place them as follows:
 #   data/
 #   ├── JSON Files/     Unzipped data corpus
+#   ├── qrels/          Relevance judgments
+#   │   ├── Study_paragraph_qrel.tsv
+#   │   ├── Study_paper_qrel.tsv
+#   │   ├── Train_paragraph_qrel.tsv
+#   │   └── Train_paper_qrel.tsv
 #   ├── Study.json      Query file
-#   ├── processed/      Written by the preprocessing script
-#   └── indexes/        Written by the retrieval index script
+#   ├── Train.json      Query file
+#   └── Test.json       Query file
 #
 # After installation, activate the environment with:
 #   conda activate cos487_env
 #
-# The application can then be started with:
-#   bash bin/run.sh --prod
-#
-# Or the evaluation pipeline can be run with:
-#   bash bin/run.sh --eval
+# The pipeline can then be run with:
+#   bash bin/run.sh
 
 ENV_NAME="cos487_env"
 PYTHON_VERSION="3.12"
@@ -226,24 +226,6 @@ echo
 echo "Installing dependencies..."
 conda run -n "$ENV_NAME" python -m pip install -r requirements.txt
 
-cd apps/prod/frontend
-npm install
-cd "$REPO_ROOT"
-
-echo "Dependencies installed successfully in '$ENV_NAME'."
-
-# Preprocess data
-echo
-echo "Preprocessing data (this may take a few minutes)..."
-conda run -n "$ENV_NAME" python -m apps.processing.preprocess
-echo "Data preprocessing complete."
-
-# Create retrieval indexes
-echo
-echo "Creating retrieval indexes (this may take a few minutes)..."
-conda run -n "$ENV_NAME" python -m apps.retrieval.index
-echo "Retrieval indexes created successfully."
-
 # Final message
 echo
 echo "Installation/setup complete!"
@@ -254,8 +236,5 @@ echo
 echo "To activate it later:"
 echo "    conda activate $ENV_NAME"
 echo
-echo "To start the search interface:"
-echo "    bash bin/run.sh --prod"
-echo
-echo "To run the evaluation pipeline:"
-echo "    bash bin/run.sh --eval"
+echo "To fine-tune the models, create the indexes, and perform retrieval:"
+echo "    bash bin/run.sh"

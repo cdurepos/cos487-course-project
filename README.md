@@ -45,10 +45,8 @@ bash bin/install.sh
 To run retrieval and evaluation:
 
 ```bash
-bash bin/run.sh --eval
+bash bin/run.sh
 ```
-
-`bash bin/run.sh --prod` starts the search interface.
 
 ### Manual Run
 Install Python dependencies once from the repository root:
@@ -57,7 +55,7 @@ Install Python dependencies once from the repository root:
 pip install -r requirements.txt
 ```
 
-##### Dense Retrieval
+#### Dense Retrieval
 From the repository root, with dependencies installed:
 
 ```bash
@@ -67,7 +65,7 @@ python -m apps.dense.indexing
 
 Fine-tuning writes the Qwen adapter under `models/finetuned_qwen`. Indexing builds the paragraph and paper indexes for the pre-trained and fine-tuned models. See `apps/dense/README.md`.
 
-##### Evaluation
+#### Evaluation
 ```bash
 python -m apps.evaluate
 ```
