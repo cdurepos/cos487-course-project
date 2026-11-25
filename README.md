@@ -65,7 +65,7 @@ python -m apps.processing.preprocess
 python -m apps.baseline.index
 ```
 
-Preprocessing writes the cleaned corpus. Indexing builds the stemmed and unstemmed paragraph and paper indexes under `data/indexes/`. Search uses the stemmed indexes and the parameters in `apps/baseline/config.yaml`.
+Preprocessing writes the cleaned corpus. Indexing builds the stemmed paragraph and paper indexes under `data/indexes/`. Search uses those indexes and the parameters in `apps/baseline/config.yaml`.
 
 `python apps/baseline/grid-search.py` fits `k1` and `b` on the Train queries and writes the scores under `data/evaluation/`.
 

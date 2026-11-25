@@ -1,21 +1,11 @@
-# BM25 configuration file
+# BM25 parameters for the stemmed indexes.
 paragraph:
-  stemmed:
-    k_1: 0.5
-    b: 0.75
-
-  unstemmed:
-    k_1: 0.5
-    b: 0.75
+  k_1: 0.5
+  b: 0.75
 
 paper:
-  stemmed:
-    k_1: 2.5
-    b: 0.75
-
-  unstemmed:
-    k_1: 2.75
-    b: 0.5
+  k_1: 2.5
+  b: 0.75
 
 default:
   k_1: 1.2

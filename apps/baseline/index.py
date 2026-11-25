@@ -1,5 +1,5 @@
 """
-Creates inverted indexes for the corpus at both the paragraph and paper levels, with and without stemming.
+Creates stemmed inverted indexes for the corpus at both the paragraph and paper levels.
 Writes inverted indexes to data/indexes/
 
 Should be run as a module from directory root (i.e., cos487-course-project/) with the command:
@@ -153,7 +153,7 @@ def get_average_document_length(index: dict) -> float:
 
 
 def main():
-    """Main function to build the indexes for both paragraph and paper levels, with and without stemming."""
+    """Build the stemmed paragraph and paper indexes."""
     parser = argparse.ArgumentParser(description="Build inverted indexes for the corpus.")
     parser.add_argument("--force", action="store_true", help="Force rebuild of indexes even if they already exist.")
     parser.add_argument("--index_dir", type=str, help="Directory to save the indexes.")
@@ -163,8 +163,7 @@ def main():
         INDEX_DIR = args.index_dir
     os.makedirs(INDEX_DIR, exist_ok=True)
     for level in ("paragraph", "paper"):
-        for stem in (True, False):
-            build_index(level, stem, force_rebuild=args.force)
+        build_index(level, True, force_rebuild=args.force)
 
 
 if __name__ == "__main__":

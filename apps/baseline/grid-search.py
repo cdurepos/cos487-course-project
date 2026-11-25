@@ -1,9 +1,7 @@
 """
 Grid search for BM25 k1 and b parameters.
 
-Evaluates all combinations of k1 and b across:
-    - paper- and paragraph-level retrieval
-    - stemmed and unstemmed indexes
+Evaluates all combinations of k1 and b for stemmed paper- and paragraph-level retrieval.
 
 Results are evaluated using nDCG, nDCG@5, MRR, Precision@5,
 and Precision@10, and saved as CSV files under data/evaluation/.
@@ -38,11 +36,6 @@ METRICS_DIR = EVAL_DIR
 LEVELS = [
     "paper",
     "paragraph"
-]
-
-STEM_OPTIONS = [
-    True,
-    False
 ]
 
 # Number of documents retained for each query/run.
@@ -494,40 +487,34 @@ def main():
         f"{len(B_VALUES)} b values = "
         f"{total_combinations} combinations"
     )
-    total_evaluations = (
-        len(LEVELS)
-        * len(STEM_OPTIONS)
-        * total_combinations
-    )
+    total_evaluations = len(LEVELS) * total_combinations
     print(
         f"Total evaluations: "
         f"{len(LEVELS)} levels × "
-        f"{len(STEM_OPTIONS)} stemming settings × "
         f"{total_combinations} combinations = "
         f"{total_evaluations}"
     )
     overall_start = time.perf_counter()
     for level in LEVELS:
-        for stem in STEM_OPTIONS:
-            results = evaluate_level(
-                queries=queries,
-                level=level,
-                stem=stem,
-            )
-            print_results(
-                results,
-                sort_metric="ndcg",
-            )
-            path = save_results(
-                results=results,
-                level=level,
-                stem=stem,
-            )
-            print(
-                f"\nSaved results → "
-                f"{path.relative_to(ROOT)}",
-                flush=True,
-            )
+        results = evaluate_level(
+            queries=queries,
+            level=level,
+            stem=True,
+        )
+        print_results(
+            results,
+            sort_metric="ndcg",
+        )
+        path = save_results(
+            results=results,
+            level=level,
+            stem=True,
+        )
+        print(
+            f"\nSaved results → "
+            f"{path.relative_to(ROOT)}",
+            flush=True,
+        )
     elapsed = time.perf_counter() - overall_start
     print(
         f"\nGrid search complete "

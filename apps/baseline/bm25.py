@@ -63,30 +63,22 @@ def load_index(level: str, stem: bool) -> dict:
 
 def get_bm25_params(
     level: str,
-    stem: bool,
     k_1: float | None = None,
     b: float | None = None,
 ) -> tuple[float, float]:
     """Get BM25 parameters from the YAML config. Provided k_1 and b values override the config.
-    Falls back to the global default if a level/stemming-specific configuration is not present.
+    Falls back to the global default if a level-specific configuration is not present.
 
     Args:
         level (str): The level of the index to search. Can be either "paragraph" or "paper"
-        stem (bool): Whether to use stemming or not
-        k_1 (float, optional): The k_1 parameter for BM25. If None, the best parameter for the given level and stemming option will be used. Defaults to None.
-        b (float, optional): The b parameter for BM25. If None, the best parameter for the given level and stemming option will be used. Defaults to None.
+        k_1 (float, optional): The k_1 parameter for BM25. If None, the value for this level is used. Defaults to None.
+        b (float, optional): The b parameter for BM25. If None, the value for this level is used. Defaults to None.
 
     Returns:
         tuple[float, float]: A tuple containing the k_1 and b parameters for BM25.
     """
 
-    level_config = CONFIG.get(level, {})
-    stem_key = "stemmed" if stem else "unstemmed"
-
-    params = level_config.get(
-        stem_key,
-        CONFIG.get("default", {}),
-    )
+    params = CONFIG.get(level, CONFIG.get("default", {}))
     if k_1 is None:
         k_1 = params.get(
             "k_1",
@@ -118,7 +110,6 @@ def retrieve(query: str, level: str, stem: bool, k: int, k_1: float = None, b: f
 
     k_1, b = get_bm25_params(
         level=level,
-        stem=stem,
         k_1=k_1,
         b=b,
     )
@@ -320,14 +311,6 @@ def main():
             if level in ("paragraph", "paper"):
                 break
         while True:
-            stem = input("Use stemming? (y/n): ").strip().lower()
-            if stem == "y":
-                stem = True
-                break
-            elif stem == "n":
-                stem = False
-                break
-        while True:
             k = input("Enter how many results to return: ").strip()
             try:
                 k = int(k)
@@ -335,7 +318,7 @@ def main():
                 continue
             if k > 0:
                 break
-        results = retrieve(query, level, stem, k)
+        results = retrieve(query, level, True, k)
         print(f"Top {k} results for query '{query}':")
         for doc_id, score in results.items():
             print(f"{doc_id}: {score:.4f}")
