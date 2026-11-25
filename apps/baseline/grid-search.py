@@ -4,7 +4,7 @@ Grid search for BM25 k1 and b parameters.
 Evaluates all combinations of k1 and b for stemmed paper- and paragraph-level retrieval.
 
 Results are evaluated using nDCG, nDCG@5, MRR, Precision@5,
-and Precision@10, and saved as CSV files under data/evaluation/.
+and Precision@10, and saved as CSV files under data/metrics/.
 
 Run from the repository root:
     python apps/baseline/grid-search.py
@@ -28,10 +28,7 @@ if __name__ == "__main__" and __package__ in (None, ""):
     sys.path.insert(0, str(ROOT))
 
 from apps.baseline import bm25
-from apps.utils import DATA_DIR, EVAL_DIR, QRELS_DIR
-
-
-METRICS_DIR = EVAL_DIR
+from apps.utils import DATA_DIR, METRICS_DIR, QRELS_DIR
 
 LEVELS = [
     "paper",
@@ -72,24 +69,6 @@ METRICS = [
     "precision@5",
     "precision@10",
 ]
-
-
-def load_queries(set_name: str) -> list[tuple[str, str]]:
-    path = DATA_DIR / f"{set_name.capitalize()}.json"
-    if not path.exists():
-        raise FileNotFoundError(path)
-    rows = json.loads(path.read_text())
-    return [(str(row["query_id"]), row["query"]) for row in rows]
-
-
-def load_qrels(set_name: str, level: str, query_ids: set[str], rel_lvl: int) -> Qrels:
-    path = QRELS_DIR / f"{set_name.capitalize()}_{level}_qrel.tsv"
-    if not path.exists():
-        raise FileNotFoundError(path)
-    judged = Qrels.from_file(str(path), kind="trec").to_dict()
-    qrels = Qrels.from_dict({qid: docs for qid, docs in judged.items() if qid in query_ids})
-    qrels.set_relevance_level(rel_lvl=rel_lvl)
-    return qrels
 
 
 def make_parameter_grid() -> list[tuple[float, float]]:
@@ -307,12 +286,12 @@ def evaluate_level(
         query[0]
         for query in queries
     }
-    qrels = load_qrels(
-        "train",
-        level,
-        query_ids,
-        1,
-    )
+    qrel_path = QRELS_DIR / f"Train_{level}_qrel.tsv"
+    if not qrel_path.exists():
+        raise FileNotFoundError(qrel_path)
+    judged = Qrels.from_file(str(qrel_path), kind="trec").to_dict()
+    qrels = Qrels.from_dict({qid: docs for qid, docs in judged.items() if qid in query_ids})
+    qrels.set_relevance_level(rel_lvl=1)
     qrels_dict = qrels.to_dict()
     qrels = Qrels.from_dict(
         {
@@ -473,7 +452,11 @@ def save_results(
 def main():
     """Runs BM25 grid search."""
 
-    queries = load_queries("train")
+    path = DATA_DIR / "Train.json"
+    if not path.exists():
+        raise FileNotFoundError(path)
+    rows = json.loads(path.read_text())
+    queries = [(str(row["query_id"]), row["query"]) for row in rows]
     print(
         f"Loaded {len(queries)} queries."
     )

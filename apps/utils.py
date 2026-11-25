@@ -7,7 +7,8 @@ DATA_DIR = ROOT_DIR / "data"
 
 CORPUS_DIR = DATA_DIR / "JSON Files"
 QRELS_DIR = DATA_DIR / "qrels"
-EVAL_DIR = DATA_DIR / "evaluation"
+METRICS_DIR = DATA_DIR / "metrics"
+GENERATED_DIR = DATA_DIR / "generated"
 
 PROMPT_INTENT_DOMINANT = """
 Read the question and identify its single dominant intent.

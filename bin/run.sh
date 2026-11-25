@@ -104,7 +104,10 @@ python -m apps.processing.preprocess
 echo "Creating the BM25 indexes..."
 python -m apps.baseline.index
 
+echo "Generating queries..."
+python -m apps.generate
+
 echo "Performing retrieval and evaluation..."
 python -m apps.evaluate
 
-echo "Indexing, retrieval, and evaluation completed successfully!"
+echo "Generation, retrieval, and evaluation completed successfully!"

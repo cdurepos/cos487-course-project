@@ -12,12 +12,13 @@ Members:
 Each part of the project has its own folder under `apps/`.
 
 ```text
-data/                  Corpus, queries, qrels, indexes, and runs
+data/                  Corpus, queries, qrels, indexes, generated replies, metrics, and runs
 bin/                   Install and run scripts
 apps/
 ├── processing/        Corpus preprocessing for BM25
 ├── baseline/          BM25 indexing and search
-├── retrieval.py       Gemma prompt, then BM25 search
+├── generate.py        Generate and save one reply per query
+├── retrieval.py       BM25 search of the original query or a saved reply
 ├── evaluate.py        Run retrieval and score the results
 └── utils.py           Paths and prompts shared by more than one module
 ```
@@ -67,14 +68,21 @@ python -m apps.baseline.index
 
 Preprocessing writes the cleaned corpus. Indexing builds the stemmed paragraph and paper indexes under `data/indexes/`. Search uses those indexes and the parameters in `apps/baseline/config.yaml`.
 
-`python apps/baseline/grid-search.py` fits `k1` and `b` on the Train queries and writes the scores under `data/evaluation/`.
+`python apps/baseline/grid-search.py` fits `k1` and `b` on the Train queries and writes the scores under `data/metrics/`.
+
+#### Generation
+```bash
+python -m apps.generate
+```
+
+Writes one reply file per query set and prompt under `data/generated/`. Study generation time and token count are written under `data/metrics/`. The run uses seed 42.
 
 #### Evaluation
 ```bash
 python -m apps.evaluate
 ```
 
-Runs the original query and every prompt in `PROMPT_MAP` through BM25 on Study and Test. Study is scored against the qrels.
+Searches the original query and the saved replies with BM25 on Study and Test. Study retrieval metrics are written under `data/metrics/`. Generation time stays in the file written by `generate.py`.
 
 ## Course Required Documentation
 
