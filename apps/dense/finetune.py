@@ -2,7 +2,7 @@
 Fine-tune a qlora adapter for the Qwen3-Embedding-0.6B model
 
 Usage:
-    python -m apps.finetuning.dense
+    python -m apps.dense.finetune
 """
 
 
@@ -18,14 +18,16 @@ import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
+from apps.utils import CORPUS_DIR, DATA_DIR, MODEL_DIR, QRELS_DIR
+
 
 MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"
 INSTRUCTION = "Given a scientific research question, retrieve paragraphs from scientific papers that are relevant to answering the question."
+FINETUNED_ADAPTER = MODEL_DIR / "finetuned_qwen"
 
-TOPICS = "data/Train.json"
-QRELS = "data/qrels/Train_paragraph_qrel.tsv"
-CORPUS_DIR = "data/JSON Files"
-OUTPUT_DIR = "models/qwen"
+TOPICS = DATA_DIR / "Train.json"
+QRELS = QRELS_DIR / "Train_paragraph_qrel.tsv"
+OUTPUT_DIR = MODEL_DIR
 SEED = 42
 
 EPOCHS = 10
@@ -457,7 +459,7 @@ def main():
     scaler = torch.amp.GradScaler("cuda", enabled=True)
 
     best_validation_loss = float("inf")
-    best_adapter_dir = (Path(OUTPUT_DIR) / "best_adapter")
+    best_adapter_dir = FINETUNED_ADAPTER
     history = []
 
     for epoch in range(1, EPOCHS + 1):
