@@ -96,26 +96,15 @@ elif [[ ! -f "data/Test.json" ]]; then
 fi
 
 echo "Repository: $REPO_ROOT"
-echo "Retrieval settings:   configs/eval.yaml"
-echo "Sparse model settings: configs/sparse.yaml"
 echo
 
-echo "Fine-tuning the sparse model..."
-python -m apps.finetuning.sparse
+echo "Preprocessing the corpus..."
+python -m apps.processing.preprocess
 
-echo "Fine-tuning the dense model..."
-python -m apps.finetuning.dense
-
-echo "Fine-tuning the cross-encoder model..."
-python -m apps.finetuning.dense_crossencoder
-
-echo "Creating the sparse indexes..."
-python -m apps.indexing.sparse
-
-echo "Creating the dense indexes..."
-python -m apps.indexing.dense
+echo "Creating the BM25 indexes..."
+python -m apps.baseline.index
 
 echo "Performing retrieval and evaluation..."
-python -m apps.evaluation.evaluate
+python -m apps.evaluate
 
-echo "Model fine-tuning, indexing, retrieval, and evaluation completed successfully!"
+echo "Indexing, retrieval, and evaluation completed successfully!"

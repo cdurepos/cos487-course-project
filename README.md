@@ -15,9 +15,11 @@ Each part of the project has its own folder under `apps/`.
 data/                  Corpus, queries, qrels, indexes, and runs
 bin/                   Install and run scripts
 apps/
-├── dense/             Qwen fine-tuning, indexing, and search
+├── processing/        Corpus preprocessing for BM25
+├── baseline/          BM25 indexing and search
+├── retrieval.py       Gemma prompt, then BM25 search
 ├── evaluate.py        Run retrieval and score the results
-└── utils.py           Paths shared by more than one module
+└── utils.py           Paths and prompts shared by more than one module
 ```
 
 ## Use Guide
@@ -55,22 +57,24 @@ Install Python dependencies once from the repository root:
 pip install -r requirements.txt
 ```
 
-#### Dense Retrieval
+#### BM25
 From the repository root, with dependencies installed:
 
 ```bash
-python -m apps.dense.finetune
-python -m apps.dense.indexing
+python -m apps.processing.preprocess
+python -m apps.baseline.index
 ```
 
-Fine-tuning writes the Qwen adapter under `models/finetuned_qwen`. Indexing builds the paragraph and paper indexes for the pre-trained and fine-tuned models. See `apps/dense/README.md`.
+Preprocessing writes the cleaned corpus. Indexing builds the stemmed and unstemmed paragraph and paper indexes under `data/indexes/`. Search uses the stemmed indexes and the parameters in `apps/baseline/config.yaml`.
+
+`python apps/baseline/grid-search.py` fits `k1` and `b` on the Train queries and writes the scores under `data/evaluation/`.
 
 #### Evaluation
 ```bash
 python -m apps.evaluate
 ```
 
-Runs the plain Qwen query and every prompt in `PROMPT_MAP` on Study and Test. Study is scored against the qrels.
+Runs the original query and every prompt in `PROMPT_MAP` through BM25 on Study and Test. Study is scored against the qrels.
 
 ## Course Required Documentation
 
@@ -78,11 +82,9 @@ Runs the plain Qwen query and every prompt in `PROMPT_MAP` on Study and Test. St
 
 #### Clayton Durepos
 
-- Part 2 sparse experiments (removed for Part 3)
-- Evaluation pipeline: `evaluation/evaluate.py`
+- Evaluation pipeline: `evaluate.py`
 
 #### Ella Hawkins
 
-- Dense model code: `dense/finetune.py`, `dense/indexing.py`, `dense/retrieval.py`
-- Indexer component and BM25 system
+- BM25 indexing and retrieval: `baseline/index.py`, `baseline/bm25.py`
 - `install.sh`, `run.sh`

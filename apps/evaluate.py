@@ -33,10 +33,6 @@ def evaluate_level(name, level, queries, generated):
         paths[method] = str((RUN_DIR / f"TheSearchParty_{level}_{method}_{name}.tsv").relative_to(ROOT_DIR))
         latency[method] = per_query
 
-    file = RUN_DIR / f"TheSearchParty_{level}_bm25_{name}.tsv"
-    runs["bm25"] = Run.from_file(str(file), kind="trec", name="bm25")
-    paths["bm25"] = str(file.relative_to(ROOT_DIR))
-
     prefix = f"{name}_{level}"
     means = {}
     for method, per_query in latency.items():
@@ -133,7 +129,7 @@ def main():
             raise FileNotFoundError(file)
 
     generated = {name: {level: {} for level in LEVELS} for name in sets}
-    approaches = [("qwen", None), *[(name, name) for name in PROMPT_MAP]]
+    approaches = [("bm25", None), *[(name, name) for name in PROMPT_MAP]]
 
     for label, approach in approaches:
         for name, queries in sets.items():

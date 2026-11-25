@@ -1,4 +1,4 @@
-"""Query, then an approach prompt, then Qwen retrieval.
+"""Query, then an approach prompt, then BM25 retrieval.
 
     retrieve(question, "dominant")
     retrieve(question, "multi", i=3)
@@ -8,8 +8,8 @@
 and a query on each line. Any other approach searches the whole reply as one query.
 """
 
-from apps.dense.retrieval import search
 from apps.gemma import generate, load_model
+from apps.baseline.bm25 import retrieve as bm25_retrieve
 from apps.utils import PROMPT_MAP
 
 _model = None
@@ -67,12 +67,12 @@ def retrieve(query, approach=None, level="paragraph", k=100, i=3):
     if not parsed or not parsed[0][1]:
         parsed = [(1.0, query)]
 
-    # Paper search always uses the paper's best paragraph.
+    # Stemmed BM25, at the paragraph or paper index for this level.
     rankings = [
-        search(line, training="finetuned", level=level, paper_method="from_paragraphs", k=k)
+        list(bm25_retrieve(line, level, True, k).items())
         for _, line in parsed
     ]
-    # One query keeps the Qwen scores.
+    # One query keeps the BM25 scores.
     if len(rankings) == 1:
         return text, rankings[0]
 

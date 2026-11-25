@@ -1,0 +1,22 @@
+# BM25 configuration file
+paragraph:
+  stemmed:
+    k_1: 0.5
+    b: 0.75
+
+  unstemmed:
+    k_1: 0.5
+    b: 0.75
+
+paper:
+  stemmed:
+    k_1: 2.5
+    b: 0.75
+
+  unstemmed:
+    k_1: 2.75
+    b: 0.5
+
+default:
+  k_1: 1.2
+  b: 0.75
