@@ -40,8 +40,6 @@ def retrieve(query, approach=None, level="paragraph", k=100, original=None):
                 parsed = [(weight / total, line) for weight, line in parsed]
         elif approach == "multi":
             parsed = [(1.0, line) for line in lines]
-        elif "expansion" in approach:
-            parsed = [(1.0, fallback + " " + text)]
         else:
             # One passage: rewrite, dominant intent, or a generated answer.
             parsed = [(1.0, " ".join(text.split()))]

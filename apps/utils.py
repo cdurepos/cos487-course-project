@@ -10,6 +10,25 @@ QRELS_DIR = DATA_DIR / "qrels"
 METRICS_DIR = DATA_DIR / "metrics"
 GENERATED_DIR = DATA_DIR / "generated"
 
+
+REWRITE = """
+Read the scientific question and rewrite it to maximize the chance of retrieving relevant paragraphs from scientific papers. 
+This includes keeping the scientific terms that identify the topic, removing irrelevant words, and explicitly stating implied information. 
+Do not answer the question. Return only the query, on one line.
+
+Question: {query}
+"""
+
+HYDE = """
+Write 2 sentences in the style of a research-paper paragraph that would answer this question. 
+Do not invent numbers, names, theorem numbers, or results. Reuse the question's own terminology. 
+If the question refers to specifics of one particular paper (a section, a theorem,
+"the described system", "the twelve scenarios"), output only the question rephrased as a statement.
+One line.
+
+Question: {query}
+"""
+
 PROMPT_INTENT_DOMINANT = """
 Read the question and identify its single dominant intent.
 Write one well-suited retrieval query for that intent. Keep the scientific terms that identify the topic.
@@ -38,8 +57,8 @@ Question: {query}
 """
 
 PROMPT_MAP = {
-    # "original":                        # for original query content based retrieval (e.g. rewrite, expansion)
-    # "answer":                          # for answer based retrieval
+    "rewrite": REWRITE,
+    "hyde": HYDE,
     "dominant": PROMPT_INTENT_DOMINANT,
     "multi": PROMPT_INTENT_MULTI,
     "likelihood": PROMPT_INTENT_LIKELIHOOD
