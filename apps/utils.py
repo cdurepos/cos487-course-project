@@ -2,13 +2,26 @@
 
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+# change this according to where `data/` should be stored
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "netstore1" / "dev" / "cos487-course-project"
+
 DATA_DIR = ROOT_DIR / "data"
 
 CORPUS_DIR = DATA_DIR / "JSON Files"
 QRELS_DIR = DATA_DIR / "qrels"
 METRICS_DIR = DATA_DIR / "metrics"
+TRAINING_DIR = METRICS_DIR / "grid-search"
+GENERATION_DIR = METRICS_DIR / "generation"
+QUERY_DIR = DATA_DIR / "queries"
 GENERATED_DIR = DATA_DIR / "generated"
+INDEX_DIR = DATA_DIR / "indexes"
+INDEX_MAP = {
+    "paragraph": INDEX_DIR / "paragraph_index_stemmed.json",
+    "paper": INDEX_DIR / "paper_index_stemmed.json",
+}
+
+# shared config path output by grid-search.py
+CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 
 
 REWRITE = """

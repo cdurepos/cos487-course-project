@@ -17,27 +17,15 @@ two levels (see Study_paper_qrel.tsv and Study_paragraph_qrel.tsv):
 
 WHAT GETS WRITTEN TO DISK, AND WHAT DOES NOT
 --------------------------------------------
-The files in data/processed/ hold CLEANED BUT UNSTEMMED words. Cleaning (removing
-math, citations, URLs, stopwords) throws away things that are not content, so
-it is safe to do once and reuse. Stemming is different: it is lossy and it is
-a retrieval decision, not a data-cleaning one. Once "code" is written to disk
-as "cod" the original word is gone.
+The corpus files in data/processed/ hold cleaned, unstemmed words. Stemming
+the corpus is a load-time choice:
 
-Keeping the saved files unstemmed means:
-  - the stemming on/off experiment is a load-time flag, not a 5 minute rebuild
-  - the search interface can show real words in result snippets
-  - error analysis for the paper is readable ("augmented" not "aug")
+    docs = load_corpus("paper", stem=True)   # yields (doc_id, tokens)
 
-So stemming happens when the corpus is LOADED:
+The query files are the generated replies from data/generated/, cleaned and
+stemmed in this pass. Load them with the approach name:
 
-    from Preprocessing import load_corpus, load_queries
-
-    docs    = load_corpus("paper", stem=True)     # yields (doc_id, tokens)
-    queries = load_queries("study", stem=True)
-
-IMPORTANT: pass the same stem= value to both calls. If the documents are
-stemmed and the queries are not, matching terms stop lining up and the model
-looks broken for no visible reason.
+    queries = load_queries("study", "rewrite")
 
 
 CLEANING STEPS (identical for documents and queries)
@@ -56,9 +44,10 @@ OUTPUT FILES (all tab separated, "id <TAB> word word word")
     data/processed/paper_corpus.tsv       one row per paper
     data/processed/paragraph_corpus.tsv   one row per paragraph
     data/processed/paper_titles.tsv       id, title, abstract - for the interface
-    data/processed/queries_study.tsv      one row per query
-    data/processed/queries_test.tsv
-    data/processed/queries_train.tsv
+    data/processed/queries_<set>_<approach>.json
+                                          one file per generated reply set
+                                          (study/test × rewrite, hyde, dominant,
+                                          multi, likelihood)
     data/processed/build_info.txt         corpus statistics for the report
 
 Run:  python preprocess.py
@@ -69,12 +58,10 @@ import json
 import os
 import re
 
+from apps.utils import DATA_DIR, GENERATED_DIR, PROMPT_MAP
 
-# Folders. Every input (the paper JSON files and the Study/Test/Train query
-# files) lives under data/, and every generated file is written under
-# data/processed/, so the raw corpus and the build output stay together and
-# out of the way of the app code.
-DATA_DIR = "data"
+# Folders. Paper JSON files live under data/. Generated replies live under
+# data/generated/. Every file this script writes goes under data/processed/.
 JSON_DIR = os.path.join(DATA_DIR, "JSON Files")
 OUT_DIR = os.path.join(DATA_DIR, "processed")
 
@@ -355,23 +342,61 @@ def build_corpus():
     print(report)
 
 
+def process_query(text, approach):
+    """Clean one generated reply with stemming.
+
+    "multi" keeps one processed query per line. "likelihood" keeps the weight,
+    a tab, and the processed query on each line. Other approaches are one query.
+    """
+    if not text:
+        return ""
+
+    if approach == "multi":
+        lines = []
+        for line in text.splitlines():
+            tokens = preprocess(line, stem=True)
+            if tokens:
+                lines.append(" ".join(tokens))
+        return "\n".join(lines)
+
+    if approach == "likelihood":
+        lines = []
+        for line in text.splitlines():
+            weight, sep, query = line.strip().partition("\t")
+            if not sep:
+                continue
+            tokens = preprocess(query, stem=True)
+            if tokens:
+                lines.append(weight.strip() + "\t" + " ".join(tokens))
+        return "\n".join(lines)
+
+    return " ".join(preprocess(text, stem=True))
+
+
 def build_queries():
-    """Clean the queries the exact same way the documents were cleaned."""
-    for name in ("Study", "Test", "Train"):
-        path = os.path.join(DATA_DIR, name + ".json")
-        if not os.path.exists(path):
-            print("  %s not found, skipping." % path)
-            continue
+    """Clean the Study and Test replies written by apps.generate.
 
-        with open(path, encoding="utf-8") as f:
-            queries = json.load(f)
+    Reads data/generated/<set>_<approach>.json and writes
+    data/processed/queries_<set>_<approach>.json. Each reply is stemmed.
+    """
+    for name in ("study", "test"):
+        for approach in PROMPT_MAP:
+            path = GENERATED_DIR / f"{name}_{approach}.json"
+            if not path.is_file():
+                print("  %s not found, skipping." % path)
+                continue
 
-        out_path = os.path.join(OUT_DIR, "queries_%s.tsv" % name.lower())
-        with open(out_path, "w", encoding="utf-8") as out:
-            for q in queries:
-                tokens = preprocess(q["query"])
-                out.write(str(q["query_id"]) + "\t" + " ".join(tokens) + "\n")
-        print("  %s: %d queries" % (out_path, len(queries)))
+            record = json.loads(path.read_text(encoding="utf-8"))
+            processed = {
+                str(qid): process_query(text, approach)
+                for qid, text in record.get("queries", {}).items()
+            }
+
+            out_path = os.path.join(OUT_DIR, "queries_%s_%s.json" % (name, approach))
+            with open(out_path, "w", encoding="utf-8") as out:
+                json.dump({"queries": processed}, out, indent=2)
+                out.write("\n")
+            print("  %s: %d queries" % (out_path, len(processed)))
 
 
 # ---------------------------------------------------------------------------
@@ -406,23 +431,16 @@ def load_corpus(level, stem=False):
             yield doc_id, (stem_tokens(tokens) if stem else tokens)
 
 
-def load_queries(name, stem=False):
-    """Return a list of (query_id, tokens) for "study", "test" or "train".
+def load_queries(name, approach):
+    """Return a list of (query_id, text) for one generated approach.
 
-    Use the same stem= value here as for load_corpus, otherwise query terms
-    and document terms will not line up.
+    name is "study" or "test". approach is a key in PROMPT_MAP, such as
+    "rewrite" or "likelihood". The text is already cleaned and stemmed.
     """
-    path = os.path.join(OUT_DIR, "queries_%s.tsv" % name.lower())
-    out = []
+    path = os.path.join(OUT_DIR, "queries_%s_%s.json" % (name.lower(), approach))
     with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.rstrip("\n")
-            if not line:
-                continue
-            qid, _, token_text = line.partition("\t")
-            tokens = token_text.split()
-            out.append((qid, stem_tokens(tokens) if stem else tokens))
-    return out
+        record = json.load(f)
+    return [(str(qid), text) for qid, text in record["queries"].items()]
 
 
 def load_titles():

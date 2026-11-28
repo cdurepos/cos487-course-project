@@ -31,9 +31,10 @@ Users must download COS487 Information Retrieval course data files. For installa
 data/
 ├── JSON Files/     Unzipped data corpus
 ├── qrels/          QREL files
-├── Train.json
-├── Study.json
-└── Test.json
+└── queries/        Query files
+    ├── Train.json
+    ├── Study.json
+    └── Test.json
 ```
 
 ### Quick Run
@@ -58,31 +59,27 @@ Install Python dependencies once from the repository root:
 pip install -r requirements.txt
 ```
 
-#### BM25
 From the repository root, with dependencies installed:
 
 ```bash
-python -m apps.processing.preprocess
-python -m apps.baseline.index
+python -m src.generate
 ```
+Writes one reply file per query set and prompt under `data/generated/`. Study generation time and token count are written under `data/metrics/generation/`. The run uses seed 42.
 
-Preprocessing writes the cleaned corpus. Indexing builds the stemmed paragraph and paper indexes under `data/indexes/`. Search uses those indexes and the parameters in `apps/baseline/config.yaml`.
-
-`python apps/baseline/grid-search.py` fits `k1` and `b` on the Train queries and writes the scores under `data/metrics/`.
-
-#### Generation
 ```bash
-python -m apps.generate
+python -m src.processing.preprocess
+python -m src.baseline.index
 ```
 
-Writes one reply file per query set and prompt under `data/generated/`. Study generation time and token count are written under `data/metrics/`. The run uses seed 42.
+Preprocessing writes the cleaned corpus. Indexing builds the stemmed paragraph and paper indexes under `data/indexes/`.
 
-#### Evaluation
+`python src/grid-search.py` fits `k1` and `b` on the Train queries and writes the scores under `data/metrics/grid-search/`.
+Best scoring parameters are saved to `src/config.yaml` for use in retrieval & evaluation.
+
 ```bash
-python -m apps.evaluate
+python -m src.evaluate
 ```
-
-Searches the original query and the saved replies with BM25 on Study and Test. Study retrieval metrics are written under `data/metrics/`. Generation time stays in the file written by `generate.py`.
+Searches the original query and the saved replies with BM25 on Study and Test. Study retrieval metrics are written under `data/metrics/`.
 
 ## Course Required Documentation
 
@@ -90,9 +87,13 @@ Searches the original query and the saved replies with BM25 on Study and Test. S
 
 #### Clayton Durepos
 
-- Evaluation pipeline: `evaluate.py`
+- Evaluation pipeline: `src/evaluate.py`
+- Retrieval wrapper: `src/retrieval.py`
+- Generation:  `src/generate.py`
+- Repo utils: `src/utils.py`
 
 #### Ella Hawkins
 
-- BM25 indexing and retrieval: `baseline/index.py`, `baseline/bm25.py`
-- `install.sh`, `run.sh`
+- BM25 indexing and retrieval: `src/baseline/index.py`, `src/baseline/bm25.py`
+- Grid search: `src/grid-search.py`
+- Bash scripts: `bin/install.sh`, `bin/run.sh`

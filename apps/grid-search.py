@@ -1,13 +1,14 @@
 """
 Grid search for BM25 k1 and b parameters.
 
-Evaluates all combinations of k1 and b for stemmed paper- and paragraph-level retrieval.
+Evaluates all combinations of k1 and b on the generated Train replies,
+for each prompt approach, at the stemmed paper and paragraph indexes.
 
 Results are evaluated using nDCG, nDCG@5, MRR, Precision@5,
-and Precision@10, and saved as CSV files under data/metrics/.
+and Precision@10, and saved as CSV files under data/metrics/grid-search/.
 
 Run from the repository root:
-    python apps/baseline/grid-search.py
+    python apps/grid-search.py
 """
 
 
@@ -19,16 +20,16 @@ import sys
 import time
 from pathlib import Path
 from tqdm import tqdm
+import yaml
 
-import numpy as np
 from ranx import Qrels, Run, evaluate
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 if __name__ == "__main__" and __package__ in (None, ""):
     sys.path.insert(0, str(ROOT))
 
-from apps.baseline import bm25
-from apps.utils import DATA_DIR, METRICS_DIR, QRELS_DIR
+from apps.retrieval import retrieve
+from apps.utils import CONFIG_PATH, GENERATED_DIR, PROMPT_MAP, QRELS_DIR, QUERY_DIR, ROOT_DIR, TRAINING_DIR
 
 LEVELS = [
     "paper",
@@ -39,27 +40,15 @@ LEVELS = [
 K = 100
 
 K1_VALUES = [
-    0.0,
-    0.25,
-    0.5,
-    0.75,
-    1.0,
-    1.25,
-    1.5,
-    1.75,
-    2.0,
-    2.25,
-    2.5,
-    2.75,
-    3.0,
+    0.9,
+    1.2,    # default
+    1.6
 ]
 
 B_VALUES = [
-    0.0,
-    0.25,
-    0.5,
-    0.75,
-    1.0,
+    0.4,
+    0.75,   # default
+    1.0
 ]
 
 METRICS = [
@@ -80,167 +69,66 @@ def make_parameter_grid() -> list[tuple[float, float]]:
     ]
 
 
-def prepare_all_queries(
-    queries: list[tuple[str, str]],
-    level: str,
-    stem: bool,
-) -> list[tuple[str, dict]]:
+def load_train_queries(approach: str) -> list[tuple[str, str, str]]:
+    """Load generated Train replies for one approach.
+
+    Each item is (query_id, generated reply, original question). Retrieval
+    parses the reply and falls back to the original question when it is empty.
     """
-    Prepare all queries once for a level/stemming combination.
-
-    Args:
-        queries (list[tuple[str, str]]): List of (query_id, query_text) tuples.
-        level (str): The retrieval level ("paper" or "paragraph").
-        stem (bool): Whether to use the stemmed index.
-    
-    Returns:
-        list[tuple[str, dict]]: List of (query_id, prepared_query) tuples
-    """
-
-    print(
-        f"Preparing {len(queries)} queries "
-        f"for level={level}, stem={stem}...",
-        flush=True,
-    )
-    started = time.perf_counter()
-    prepared = bm25.prepare_queries(
-        queries,
-        level,
-        stem,
-    )
-    elapsed = time.perf_counter() - started
-    print(
-        f"Prepared {len(prepared)} queries "
-        f"in {elapsed:.2f}s.",
-        flush=True,
-    )
-    return prepared
-
-
-def retrieve_all_parameters(
-    prepared_query: dict,
-    parameter_grid: list[tuple[float, float]],
-    k: int,
-) -> list[dict[str, float]]:
-    """
-    Evaluates every k1/b combination for one prepared query.
-
-    Args:
-        prepared_query (dict): The prepared query representation.
-        parameter_grid (list[tuple[float, float]]): List of (k1, b) parameter combinations to evaluate.
-        k (int): The number of top documents to return for each parameter combination.
-
-    Returns:
-        list[dict[str, float]]: A list of dictionaries, one for each parameter combination, 
-                                where each dictionary maps document IDs to their BM25 scores for that combination.
-    """
-
-    postings = prepared_query["postings"]
-    average_doc_length = prepared_query["average_doc_length"]
-    num_parameters = len(parameter_grid)
-
-    if not postings or average_doc_length <= 0:
-        return [{} for _ in range(num_parameters)]
-
-    k1_values = np.asarray(
-        [k1 for k1, _ in parameter_grid],
-        dtype=np.float64,
-    )
-    b_values = np.asarray(
-        [b for _, b in parameter_grid],
-        dtype=np.float64,
-    )
-    scores = [
-        {}
-        for _ in range(num_parameters)
+    generated_path = GENERATED_DIR / f"train_{approach}.json"
+    if not generated_path.is_file():
+        raise FileNotFoundError(generated_path)
+    replies = json.loads(generated_path.read_text())["queries"]
+    rows = json.loads((QUERY_DIR / "Train.json").read_text())
+    return [
+        (str(row["query_id"]), replies.get(str(row["query_id"]), ""), row["query"])
+        for row in rows
     ]
-    for posting in postings:
-        doc_ids = posting["doc_ids"]
-        tf = posting["tf"]
-        doc_lengths = posting["doc_lengths"]
-        idf = posting["idf"]
-        
-        tf_column = tf[:, None]
-        doc_length_column = doc_lengths[:, None]
-
-        denominator = (
-            tf_column
-            + k1_values[None, :]
-            * (
-                1.0
-                - b_values[None, :]
-                + b_values[None, :]
-                * doc_length_column
-                / average_doc_length
-            )
-        )
-        term_scores = (
-            idf
-            * (
-                tf_column
-                * (k1_values[None, :] + 1.0)
-            )
-            / denominator
-        )
-        for parameter_index in range(num_parameters):
-            parameter_scores = term_scores[:, parameter_index]
-            score_dict = scores[parameter_index]
-            for doc_id, score in zip(
-                doc_ids,
-                parameter_scores,
-            ):
-                score_dict[doc_id] = (
-                    score_dict.get(doc_id, 0.0)
-                    + float(score)
-                )
-    results = []
-    for score_dict in scores:
-        if not score_dict:
-            results.append({})
-            continue
-        top_results = sorted(
-            score_dict.items(),
-            key=lambda item: item[1],
-            reverse=True,
-        )[:k]
-        results.append(dict(top_results))
-    return results
 
 
 def build_runs(
-    prepared_queries: list[tuple[str, dict]],
+    queries: list[tuple[str, str, str]],
     parameter_grid: list[tuple[float, float]],
     level: str,
     stem: bool,
+    approach: str,
 ) -> list[Run]:
     """
     Build a ranx Run for every k1/b combination.
-    
+
+    Each search goes through retrieval.retrieve, which parses multi-line and
+    weighted replies and fuses those rankings.
+
     Args:
-        prepared_queries (list[tuple[str, dict]]): List of (query_id, prepared_query) tuples.
+        queries: (query_id, generated reply, original question) triples.
         parameter_grid (list[tuple[float, float]]): List of (k1, b) parameter combinations to evaluate.
         level (str): The retrieval level ("paper" or "paragraph").
         stem (bool): Whether to use the stemmed index.
-    
+        approach (str): Generated prompt approach passed to retrieval.
+
     Returns:
         list[Run]: A list of ranx Run objects, one for each parameter combination.
     """
 
-    num_parameters = len(parameter_grid)
-    ranked_runs: list[dict[str, dict[str, float]]] = [
-        {}
-        for _ in range(num_parameters)
-    ]
-    query_number = 1
-    for qid, prepared_query in tqdm(prepared_queries, desc="Retrieving queries", unit="query"):
-        query_results = retrieve_all_parameters(
-            prepared_query,
-            parameter_grid,
-            K,
-        )
-        for parameter_index, results in enumerate(query_results):
-            ranked_runs[parameter_index][qid] = results
-        query_number += 1
+    ranked_runs: list[dict[str, dict[str, float]]] = []
+    for k1, b in parameter_grid:
+        ranked = {}
+        for qid, reply, original in tqdm(
+            queries,
+            desc=f"k1={k1:g} b={b:g}",
+            unit="query",
+        ):
+            ranking = retrieve(
+                reply,
+                approach=approach,
+                level=level,
+                k=K,
+                original=original,
+                k_1=k1,
+                b=b,
+            )
+            ranked[qid] = dict(ranking)
+        ranked_runs.append(ranked)
     runs = []
     for parameter_index, (k1, b) in enumerate(parameter_grid):
         name = (
@@ -258,17 +146,19 @@ def build_runs(
 
 
 def evaluate_level(
-    queries: list[tuple[str, str]],
+    queries: list[tuple[str, str, str]],
     level: str,
     stem: bool,
+    approach: str,
 ) -> list[dict]:
     """
-    Evaluate the complete BM25 parameter grid for one level/stemming combination.
+    Evaluate the complete BM25 parameter grid for one approach and level.
 
     Args:
-        queries (list[tuple[str, str]]): List of (query_id, query_text) tuples.
+        queries: (query_id, generated reply, original question) for each Train query.
         level (str): The retrieval level ("paper" or "paragraph").
         stem (bool): Whether to use the stemmed index.
+        approach (str): Generated prompt approach, such as "rewrite" or "multi".
     
     Returns:
         list[dict]: A list of dictionaries, one for each parameter combination,
@@ -278,7 +168,7 @@ def evaluate_level(
     print(
         f"\n{'=' * 75}\n"
         f"BM25 GRID SEARCH\n"
-        f"level={level}, stem={stem}, k={K}\n"
+        f"approach={approach}, level={level}, stem={stem}, k={K}\n"
         f"{'=' * 75}",
         flush=True,
     )
@@ -308,17 +198,13 @@ def evaluate_level(
         f" | b values: {len(B_VALUES)}",
         flush=True,
     )
-    prepared_queries = prepare_all_queries(
-        queries,
-        level,
-        stem,
-    )
     started = time.perf_counter()
     runs = build_runs(
-        prepared_queries,
+        queries,
         parameter_grid,
         level,
         stem,
+        approach,
     )
     retrieval_elapsed = time.perf_counter() - started
     print(
@@ -401,6 +287,7 @@ def save_results(
     results: list[dict],
     level: str,
     stem: bool,
+    approach: str,
 ) -> Path:
     """
     Save grid-search results to CSV.
@@ -409,12 +296,13 @@ def save_results(
         results (list[dict]): List of dictionaries containing evaluation metrics for each parameter combination.
         level (str): The level of the queries.
         stem (bool): Whether the queries are stemmed.
+        approach (str): Generated prompt approach these results were scored on.
 
     Returns:
         Path: The path to the saved CSV file.
     """
 
-    METRICS_DIR.mkdir(
+    TRAINING_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -424,9 +312,9 @@ def save_results(
         else "unstemmed"
     )
     path = (
-        METRICS_DIR
+        TRAINING_DIR
         / (
-            f"bm25_grid_"
+            f"bm25_grid_{approach}_"
             f"{level}_{stem_name}.csv"
         )
     )
@@ -449,17 +337,28 @@ def save_results(
     return path
 
 
+def save_config(level: str, approach: str, best: dict) -> None:
+    """Write the best k1 and b for one approach and level into config.yaml.
+
+    Retrieval reads that block when no k1 or b is passed. The winning metric
+    values are stored beside the parameters.
+    """
+    current = yaml.safe_load(CONFIG_PATH.read_text()) or {}
+    section = current.setdefault(level, {})
+    section[approach] = {
+        "k_1": best["k1"],
+        "b": best["b"],
+        **{metric: best[metric] for metric in METRICS},
+    }
+    CONFIG_PATH.write_text(
+        "# BM25 parameters for the stemmed indexes.\n"
+        + yaml.safe_dump(current, sort_keys=False)
+    )
+
+
 def main():
     """Runs BM25 grid search."""
 
-    path = DATA_DIR / "Train.json"
-    if not path.exists():
-        raise FileNotFoundError(path)
-    rows = json.loads(path.read_text())
-    queries = [(str(row["query_id"]), row["query"]) for row in rows]
-    print(
-        f"Loaded {len(queries)} queries."
-    )
     total_combinations = (
         len(K1_VALUES)
         * len(B_VALUES)
@@ -470,34 +369,51 @@ def main():
         f"{len(B_VALUES)} b values = "
         f"{total_combinations} combinations"
     )
-    total_evaluations = len(LEVELS) * total_combinations
+    total_evaluations = len(PROMPT_MAP) * len(LEVELS) * total_combinations
     print(
         f"Total evaluations: "
+        f"{len(PROMPT_MAP)} approaches × "
         f"{len(LEVELS)} levels × "
         f"{total_combinations} combinations = "
         f"{total_evaluations}"
     )
     overall_start = time.perf_counter()
-    for level in LEVELS:
-        results = evaluate_level(
-            queries=queries,
-            level=level,
-            stem=True,
-        )
-        print_results(
-            results,
-            sort_metric="ndcg",
-        )
-        path = save_results(
-            results=results,
-            level=level,
-            stem=True,
-        )
+    for approach in PROMPT_MAP:
+        queries = load_train_queries(approach)
         print(
-            f"\nSaved results → "
-            f"{path.relative_to(ROOT)}",
+            f"\nLoaded {len(queries)} generated Train queries "
+            f"for {approach}.",
             flush=True,
         )
+        for level in LEVELS:
+            results = evaluate_level(
+                queries=queries,
+                level=level,
+                stem=True,
+                approach=approach,
+            )
+            print_results(
+                results,
+                sort_metric="ndcg",
+            )
+            path = save_results(
+                results=results,
+                level=level,
+                stem=True,
+                approach=approach,
+            )
+            best = max(results, key=lambda row: (row["ndcg"], row["mrr"]))
+            save_config(level, approach, best)
+            print(
+                f"\nSaved results → "
+                f"{path.relative_to(ROOT_DIR)}",
+                flush=True,
+            )
+            print(
+                f"Saved {approach}/{level} parameters → "
+                f"k1={best['k1']:g}, b={best['b']:g}, nDCG={best['ndcg']:.4f}",
+                flush=True,
+            )
     elapsed = time.perf_counter() - overall_start
     print(
         f"\nGrid search complete "

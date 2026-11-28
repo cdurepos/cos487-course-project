@@ -1,5 +1,5 @@
 """
-Run each prompt-map approach on Study and Test and score Study.
+Run each generated approach on Study and Test and score Study.
 
 Usage:
     python -m apps.evaluate
@@ -21,11 +21,6 @@ K = 100
 # Full metric set at relevance >= 1. The strict pass keeps MRR and P@5 at relevance >= 2.
 METRICS = ["ndcg", "ndcg@5", "mrr", "precision@5", "precision@10"]
 STRICT_METRICS = ["mrr", "precision@5"]
-
-def load_queries(name):
-    # Original query text. BM25 searches it directly, and prompt methods fall back to it.
-    rows = json.loads((DATA_DIR / f"{name.capitalize()}.json").read_text())
-    return [(str(row["query_id"]), row["query"]) for row in rows]
 
 def evaluate_level(level, queries, generated):
     # Study runs, their TREC paths, and the times collected while retrieving.
@@ -132,48 +127,44 @@ def evaluate_level(level, queries, generated):
 
 def main():
     # Study is scored. Test is retrieved only so its TREC run can be saved.
-    sets = {"study": load_queries("study"), "test": load_queries("test")}
     for level in LEVELS:
         file = QRELS_DIR / f"Study_{level}_qrel.tsv"
         if not file.exists():
             raise FileNotFoundError(file)
 
     study = {level: {} for level in LEVELS}
-    # Original query first, then each prompt in PROMPT_MAP.
-    approaches = [("bm25", None), *[(name, name) for name in PROMPT_MAP]]
-
-    for label, approach in approaches:
-        for name, queries in sets.items():
-            # Plain BM25 searches the original query. Prompt approaches read the saved reply.
-            replies = None
-            if approach is not None:
-                file = GENERATED_DIR / f"{name}_{approach}.json"
-                if not file.is_file():
-                    raise FileNotFoundError(file)
-                replies = json.loads(file.read_text())["queries"]
-
+    study_queries = None
+    for approach in PROMPT_MAP:
+        for name in ("study", "test"):
+            file = GENERATED_DIR / f"{name}_{approach}.json"
+            if not file.is_file():
+                raise FileNotFoundError(file)
+            replies = json.loads(file.read_text())["queries"]
+            queries = [(str(qid), text) for qid, text in replies.items()]
+            if name == "study":
+                study_queries = queries
             for level in LEVELS:
                 # Time retrieval on Study only. Both sets write a TREC run.
                 ranked, latency = {}, {}
-                for qid, text in tqdm(queries, desc=f"Retrieving {name}/{level}/{label}"):
-                    reply = text if replies is None else replies[qid]
-                    start = time.perf_counter()
+                for qid, reply in tqdm(queries, desc=f"Retrieving {name}/{level}/{approach}"):
+                    if name == "study":
+                        start = time.perf_counter()
                     ranked[qid] = dict(retrieve(
-                        reply, approach=approach, original=text, level=level, k=K,
+                        reply, approach=approach, original=reply, level=level, k=K,
                     ))
                     if name == "study":
                         latency[qid] = (time.perf_counter() - start) * 1000
 
-                run = Run.from_dict(ranked, name=label)
-                file = RUN_DIR / f"TheSearchParty_{level}_{label}_{name}.tsv"
+                run = Run.from_dict(ranked, name=approach)
+                file = RUN_DIR / f"TheSearchParty_{level}_{approach}_{name}.tsv"
                 file.parent.mkdir(parents=True, exist_ok=True)
                 run.save(str(file), kind="trec")
                 print(f"Saved run: {file.relative_to(ROOT_DIR)}", flush=True)
 
-                # Study keeps the run and its retrieval times. Generation time is already in data/metrics.
+                # Study keeps the run and its retrieval times.
                 if name != "study":
                     continue
-                study[level][label] = {
+                study[level][approach] = {
                     "run": run,
                     "path": str(file.relative_to(ROOT_DIR)),
                     "retrieval_ms": latency,
@@ -181,7 +172,7 @@ def main():
 
     # Metrics, significance, and query times are written for Study only.
     for level in LEVELS:
-        evaluate_level(level, sets["study"], study[level])
+        evaluate_level(level, study_queries, study[level])
 
 if __name__ == "__main__":
     main()

@@ -30,3 +30,6 @@ processed/
 models/
 
 apps/figures/output/
+
+# bm25 trained params
+config.yaml

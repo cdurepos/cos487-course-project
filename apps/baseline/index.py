@@ -17,8 +17,7 @@ from typing import Literal
 import argparse
 
 from apps.processing.preprocess import load_corpus
-
-INDEX_DIR = os.path.join("data", "indexes")
+from apps.utils import INDEX_DIR, INDEX_MAP
 
 
 def build_index(level: Literal["paragraph", "paper"], stem: bool, force_rebuild: bool=False):
@@ -29,7 +28,7 @@ def build_index(level: Literal["paragraph", "paper"], stem: bool, force_rebuild:
         stem (bool): Whether to use stemming or not
     """
 
-    index_path = f"{INDEX_DIR}/{level}_index_{'un' if not stem else ''}stemmed.json"
+    index_path = INDEX_MAP[level]
     if os.path.exists(index_path) and not force_rebuild:
         print(f"Index file {index_path} already exists. Skipping index build.")
         return
@@ -61,18 +60,17 @@ def build_index(level: Literal["paragraph", "paper"], stem: bool, force_rebuild:
     print(f"Time taken: {(time.time() - start) / 60:.2f} minutes\n")
 
 
-def load_index(level: Literal["paragraph", "paper"], stem: bool) -> dict:
-    """Loads an inverted index for the given level
+def load_index(path) -> dict:
+    """Load an inverted index from a file path.
 
     Args:
-        level (str): The level of the index to load. Can be either "paragraph" or "paper"
-        stem (bool): Whether to use stemming or not
+        path: Index file created by build_index.
 
     Returns:
         dict: The inverted index
     """
 
-    index_path = f"{INDEX_DIR}/{level}_index_{'un' if not stem else ''}stemmed.json"
+    index_path = os.fspath(path)
     if not os.path.exists(index_path):
         raise FileNotFoundError(f"Index file {index_path} does not exist. Please build the index first.")
     
@@ -156,13 +154,10 @@ def main():
     """Build the stemmed paragraph and paper indexes."""
     parser = argparse.ArgumentParser(description="Build inverted indexes for the corpus.")
     parser.add_argument("--force", action="store_true", help="Force rebuild of indexes even if they already exist.")
-    parser.add_argument("--index_dir", type=str, help="Directory to save the indexes.")
     args = parser.parse_args()
-    if args.index_dir:
-        global INDEX_DIR
-        INDEX_DIR = args.index_dir
     os.makedirs(INDEX_DIR, exist_ok=True)
     for level in ("paragraph", "paper"):
+        # for part 3 only use stemming
         build_index(level, True, force_rebuild=args.force)
 
 

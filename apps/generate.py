@@ -1,4 +1,4 @@
-"""Generate each prompt once for Study and Test and save the replies.
+"""Generate each prompt once for Train, Study, and Test and save the replies.
 
 Usage:
     python -m apps.generate
@@ -11,10 +11,14 @@ import torch
 from tqdm import tqdm
 
 from apps.gemma import generate, load_model
-from apps.utils import DATA_DIR, GENERATED_DIR, METRICS_DIR, PROMPT_MAP, ROOT_DIR
+from apps.utils import GENERATED_DIR, GENERATION_DIR, PROMPT_MAP, QUERY_DIR, ROOT_DIR
 
 SEED = 42
-SETS = ("study", "test")
+SETS = (
+    "train",
+    "study", 
+    "test"
+)
 I = 3
 
 if __name__ == "__main__":
@@ -24,11 +28,11 @@ if __name__ == "__main__":
     model, assistant, processor = load_model()
     tokenizer = getattr(processor, "tokenizer", processor)
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-    METRICS_DIR.mkdir(parents=True, exist_ok=True)
+    GENERATION_DIR.mkdir(parents=True, exist_ok=True)
 
     for approach, prompt in PROMPT_MAP.items():
         for name in SETS:
-            rows = json.loads((DATA_DIR / f"{name.capitalize()}.json").read_text())
+            rows = json.loads((QUERY_DIR / f"{name.capitalize()}.json").read_text())
             questions = [(str(row["query_id"]), row["query"]) for row in rows]
             saved, timings = {}, {}
             for qid, question in tqdm(questions, desc=f"{name}/{approach}"):
@@ -68,7 +72,7 @@ if __name__ == "__main__":
             kept = sorted(timings, key=int)[1:] or list(timings)
             kept_ms = [timings[qid]["ms"] for qid in kept]
             kept_rates = [timings[qid]["time_per_token"] for qid in kept if timings[qid]["time_per_token"] is not None]
-            metrics = METRICS_DIR / f"study_{approach}_generation.json"
+            metrics = GENERATION_DIR / f"study_{approach}.json"
             metrics.write_text(json.dumps({
                 "set": "study",
                 "approach": approach,

@@ -1,4 +1,4 @@
-"""BM25 search for an original question or a saved model reply.
+"""Project search: load an index and the BM25 parameters, then score a reply.
 
     retrieve(question)
     retrieve(reply, "dominant")
@@ -9,11 +9,40 @@
 and a query on each line. Any other approach searches the whole reply as one query.
 """
 
+import yaml
+
 from apps.baseline.bm25 import retrieve as bm25_retrieve
+from apps.baseline.index import load_index
+from apps.utils import CONFIG_PATH, INDEX_MAP
+
+CONFIG = yaml.safe_load(CONFIG_PATH.read_text()) or {}
+INDEXES = {}
+
+def load_param(level, approach=None, k_1=None, b=None):
+    """k1 and b for a level, using the approach block when grid search saved one.
+
+    Passed-in k_1 and b replace the config values.
+    """
+    level_params = CONFIG.get(level) or {}
+    chosen = level_params
+    if approach:
+        approach_params = level_params.get(approach)
+        if isinstance(approach_params, dict):
+            chosen = approach_params
+    default = CONFIG.get("default") or {}
+    if k_1 is None:
+        k_1 = chosen.get("k_1", level_params.get("k_1", default.get("k_1", 1.2)))
+    if b is None:
+        b = chosen.get("b", level_params.get("b", default.get("b", 0.75)))
+    return float(k_1), float(b)
 
 
-def retrieve(query, approach=None, level="paragraph", k=100, original=None):
-    """Return the top-k (doc id, score) pairs for one research question."""
+def retrieve(query, approach=None, level="paragraph", k=100, original=None, k_1=None, b=None):
+    """Return the top-k (doc id, score) pairs for one research question.
+
+    k_1 and b override the parameters in config.yaml. Leave them unset to use
+    the saved values for this level and approach.
+    """
     fallback = original if original is not None else query
     text = query
     if approach is None:
@@ -46,9 +75,17 @@ def retrieve(query, approach=None, level="paragraph", k=100, original=None):
         if not parsed or not parsed[0][1]:
             parsed = [(1.0, fallback)]
 
-    # Stemmed BM25, at the paragraph or paper index for this level.
+    k_1, b = load_param(level, approach, k_1, b)
+
+    # load index & cache
+    path = INDEX_MAP[level]
+    if path not in INDEXES:
+        print(f"Loading index {path.name}", flush=True)
+        INDEXES[path] = load_index(path)
+    index = INDEXES[path]
+
     rankings = [
-        list(bm25_retrieve(line, level, True, k).items())
+        list(bm25_retrieve(line, index, k, k_1, b).items())
         for _, line in parsed
     ]
     # One query keeps the BM25 scores.
@@ -61,3 +98,32 @@ def retrieve(query, approach=None, level="paragraph", k=100, original=None):
         for rank, (doc_id, _) in enumerate(ranking, start=1):
             fused[doc_id] = fused.get(doc_id, 0.0) + weight / (60 + rank)
     return sorted(fused.items(), key=lambda item: item[1], reverse=True)[:k]
+
+
+def main():
+    """Search the project indexes from the command line."""
+    while True:
+        query = input("Enter a query (or 'exit' to quit): ")
+        if query.lower() == "exit":
+            break
+        while True:
+            level = input("Enter the level of the index to search (paragraph/paper): ").strip().lower()
+            if level in INDEX_MAP:
+                break
+        while True:
+            k = input("Enter how many results to return: ").strip()
+            try:
+                k = int(k)
+            except ValueError:
+                continue
+            if k > 0:
+                break
+        results = retrieve(query, level=level, k=k)
+        print(f"Top {k} results for query '{query}':")
+        for doc_id, score in results:
+            print(f"{doc_id}: {score:.4f}")
+        print("-" * 50)
+
+
+if __name__ == "__main__":
+    main()
