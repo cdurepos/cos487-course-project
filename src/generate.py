@@ -10,8 +10,8 @@ import time
 import torch
 from tqdm import tqdm
 
-from apps.gemma import generate, load_model
-from apps.utils import GENERATED_DIR, GENERATION_DIR, PROMPT_MAP, QUERY_DIR, ROOT_DIR
+from src.gemma import generate, load_model
+from src.utils import GENERATED_DIR, GENERATION_DIR, PROMPT_MAP, QUERY_DIR, ROOT_DIR
 
 SEED = 42
 SETS = (

@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from ranx import Qrels, Run, compare, evaluate
 
-from apps.retrieval import retrieve
-from apps.utils import DATA_DIR, GENERATED_DIR, METRICS_DIR, PROMPT_MAP, QRELS_DIR, ROOT_DIR
+from src.retrieval import retrieve
+from src.utils import DATA_DIR, GENERATED_DIR, METRICS_DIR, PROMPT_MAP, QRELS_DIR, ROOT_DIR
 
 RUN_DIR = DATA_DIR / "runs"
 LEVELS = ("paper", "paragraph")

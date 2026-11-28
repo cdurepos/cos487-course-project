@@ -58,7 +58,7 @@ import json
 import os
 import re
 
-from apps.utils import DATA_DIR, GENERATED_DIR, PROMPT_MAP
+from src.utils import DATA_DIR, GENERATED_DIR, PROMPT_MAP
 
 # Folders. Paper JSON files live under data/. Generated replies live under
 # data/generated/. Every file this script writes goes under data/processed/.

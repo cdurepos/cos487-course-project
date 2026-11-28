@@ -31,8 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if __name__ == "__main__" and __package__ in (None, ""):
     sys.path.insert(0, str(ROOT))
 
-from apps.retrieval import load_config, retrieve
-from apps.utils import CONFIG_PATH, GENERATED_DIR, PROMPT_MAP, QRELS_DIR, QUERY_DIR, ROOT_DIR, TRAINING_DIR
+from src.retrieval import load_config, retrieve
+from src.utils import CONFIG_PATH, GENERATED_DIR, PROMPT_MAP, QRELS_DIR, QUERY_DIR, ROOT_DIR, TRAINING_DIR
 
 LEVELS = [
     "paper",

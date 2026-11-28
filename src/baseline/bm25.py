@@ -2,8 +2,8 @@
 
 import math
 
-from apps.processing.preprocess import preprocess
-import apps.baseline.index as indexer
+from src.processing.preprocess import preprocess
+import src.baseline.index as indexer
 
 
 def retrieve(query: str, index: dict, k: int, k_1: float, b: float, stem: bool = True) -> dict:

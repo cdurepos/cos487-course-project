@@ -11,9 +11,9 @@ and a query on each line. Any other approach searches the whole reply as one que
 
 import yaml
 
-from apps.baseline.bm25 import retrieve as bm25_retrieve
-from apps.baseline.index import load_index
-from apps.utils import CONFIG_PATH, INDEX_MAP
+from src.baseline.bm25 import retrieve as bm25_retrieve
+from src.baseline.index import load_index
+from src.utils import CONFIG_PATH, INDEX_MAP
 
 def load_config():
     """Return the saved BM25 parameters.

@@ -16,8 +16,8 @@ import time
 from typing import Literal
 import argparse
 
-from apps.processing.preprocess import load_corpus
-from apps.utils import INDEX_DIR, INDEX_MAP
+from src.processing.preprocess import load_corpus
+from src.utils import INDEX_DIR, INDEX_MAP
 
 
 def build_index(level: Literal["paragraph", "paper"], stem: bool, force_rebuild: bool=False):
