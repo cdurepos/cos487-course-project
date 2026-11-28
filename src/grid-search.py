@@ -1,19 +1,22 @@
 """
 Grid search for BM25 k1 and b parameters.
 
-Evaluates all combinations of k1 and b on the generated Train replies,
-for each prompt approach, at the stemmed paper and paragraph indexes.
+Evaluates all combinations of k1 and b on the original Train questions
+and on the generated Train replies, for each prompt approach, at the
+stemmed paper and paragraph indexes.
 
 Results are evaluated using nDCG, nDCG@5, MRR, Precision@5,
 and Precision@10, and saved as CSV files under data/metrics/grid-search/.
 
 Run from the repository root:
     python apps/grid-search.py
+    python apps/grid-search.py --approach original,rewrite
 """
 
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import sys
@@ -28,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if __name__ == "__main__" and __package__ in (None, ""):
     sys.path.insert(0, str(ROOT))
 
-from apps.retrieval import retrieve
+from apps.retrieval import load_config, retrieve
 from apps.utils import CONFIG_PATH, GENERATED_DIR, PROMPT_MAP, QRELS_DIR, QUERY_DIR, ROOT_DIR, TRAINING_DIR
 
 LEVELS = [
@@ -66,6 +69,19 @@ def make_parameter_grid() -> list[tuple[float, float]]:
         (k1, b)
         for k1 in K1_VALUES
         for b in B_VALUES
+    ]
+
+
+def load_original_queries() -> list[tuple[str, str, str]]:
+    """Load the Train questions with no generated rewrite.
+
+    Each item is (query_id, question, question). Retrieval searches that
+    text as one query.
+    """
+    rows = json.loads((QUERY_DIR / "Train.json").read_text())
+    return [
+        (str(row["query_id"]), row["query"], row["query"])
+        for row in rows
     ]
 
 
@@ -120,7 +136,7 @@ def build_runs(
         ):
             ranking = retrieve(
                 reply,
-                approach=approach,
+                approach=None if approach == "original" else approach,
                 level=level,
                 k=K,
                 original=original,
@@ -313,10 +329,7 @@ def save_results(
     )
     path = (
         TRAINING_DIR
-        / (
-            f"bm25_grid_{approach}_"
-            f"{level}_{stem_name}.csv"
-        )
+        / f"{approach}_{level}_{stem_name}.csv"
     )
     fieldnames = [
         "k1",
@@ -340,12 +353,16 @@ def save_results(
 def save_config(level: str, approach: str, best: dict) -> None:
     """Write the best k1 and b for one approach and level into config.yaml.
 
-    Retrieval reads that block when no k1 or b is passed. The winning metric
-    values are stored beside the parameters.
+    The file is keyed by approach name, then paper or paragraph. Retrieval
+    reads that block when no k1 or b is passed. Other approaches are left in
+    place. The winning metric values are stored beside the parameters.
     """
-    current = yaml.safe_load(CONFIG_PATH.read_text()) or {}
-    section = current.setdefault(level, {})
-    section[approach] = {
+    current = load_config()
+    section = current.setdefault(approach, {})
+    if not isinstance(section, dict):
+        section = {}
+        current[approach] = section
+    section[level] = {
         "k_1": best["k1"],
         "b": best["b"],
         **{metric: best[metric] for metric in METRICS},
@@ -356,9 +373,64 @@ def save_config(level: str, approach: str, best: dict) -> None:
     )
 
 
+def selected_systems(values: list[str] | None) -> list[str]:
+    """Return the systems named by --approach.
+
+    Each value may be one name or a comma-separated list. An omitted flag
+    selects the original queries and every generated approach.
+    """
+    known = ("original", *PROMPT_MAP)
+    if not values:
+        return list(known)
+    chosen = []
+    unknown = []
+    for value in values:
+        for name in value.split(","):
+            name = name.strip()
+            if not name or name in chosen:
+                continue
+            if name not in known:
+                unknown.append(name)
+                continue
+            chosen.append(name)
+    if unknown:
+        raise argparse.ArgumentTypeError(
+            f"unknown approach: {', '.join(unknown)}. "
+            f"Choose from: {', '.join(known)}"
+        )
+    if not chosen:
+        raise argparse.ArgumentTypeError(
+            f"provide at least one approach. Choose from: {', '.join(known)}"
+        )
+    return chosen
+
+
+def parse_args() -> list[str]:
+    """Read --approach and return the systems to search."""
+    known = ("original", *PROMPT_MAP)
+    parser = argparse.ArgumentParser(
+        description="Grid search BM25 k1 and b on selected systems.",
+    )
+    parser.add_argument(
+        "--approach",
+        action="append",
+        metavar="NAME",
+        help=(
+            "System to search. Repeat the flag or pass a comma-separated list. "
+            f"Default: {', '.join(known)}"
+        ),
+    )
+    args = parser.parse_args()
+    try:
+        return selected_systems(args.approach)
+    except argparse.ArgumentTypeError as error:
+        parser.error(str(error))
+
+
 def main():
     """Runs BM25 grid search."""
 
+    systems = parse_args()
     total_combinations = (
         len(K1_VALUES)
         * len(B_VALUES)
@@ -369,22 +441,29 @@ def main():
         f"{len(B_VALUES)} b values = "
         f"{total_combinations} combinations"
     )
-    total_evaluations = len(PROMPT_MAP) * len(LEVELS) * total_combinations
+    total_evaluations = len(systems) * len(LEVELS) * total_combinations
     print(
         f"Total evaluations: "
-        f"{len(PROMPT_MAP)} approaches × "
+        f"{len(systems)} systems × "
         f"{len(LEVELS)} levels × "
         f"{total_combinations} combinations = "
         f"{total_evaluations}"
     )
     overall_start = time.perf_counter()
-    for approach in PROMPT_MAP:
-        queries = load_train_queries(approach)
-        print(
-            f"\nLoaded {len(queries)} generated Train queries "
-            f"for {approach}.",
-            flush=True,
-        )
+    for approach in systems:
+        if approach == "original":
+            queries = load_original_queries()
+            print(
+                f"\nLoaded {len(queries)} original Train queries.",
+                flush=True,
+            )
+        else:
+            queries = load_train_queries(approach)
+            print(
+                f"\nLoaded {len(queries)} generated Train queries "
+                f"for {approach}.",
+                flush=True,
+            )
         for level in LEVELS:
             results = evaluate_level(
                 queries=queries,

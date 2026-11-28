@@ -15,25 +15,37 @@ from apps.baseline.bm25 import retrieve as bm25_retrieve
 from apps.baseline.index import load_index
 from apps.utils import CONFIG_PATH, INDEX_MAP
 
-CONFIG = yaml.safe_load(CONFIG_PATH.read_text()) or {}
+def load_config():
+    """Return the saved BM25 parameters.
+
+    A missing config.yaml is an empty config. Callers then use the built-in
+    k1 and b defaults until grid search writes the file.
+    """
+    if not CONFIG_PATH.is_file():
+        return {}
+    return yaml.safe_load(CONFIG_PATH.read_text()) or {}
+
+CONFIG = load_config()
 INDEXES = {}
 
 def load_param(level, approach=None, k_1=None, b=None):
-    """k1 and b for a level, using the approach block when grid search saved one.
+    """k1 and b for one approach and level.
 
-    Passed-in k_1 and b replace the config values.
+    Config is keyed by approach, then paper or paragraph. Passed-in k_1 and b
+    replace those values. No approach uses original. A missing approach falls
+    back to that level's default, then the shared default.
     """
-    level_params = CONFIG.get(level) or {}
-    chosen = level_params
-    if approach:
-        approach_params = level_params.get(approach)
-        if isinstance(approach_params, dict):
-            chosen = approach_params
-    default = CONFIG.get("default") or {}
+    chosen = (CONFIG.get(approach or "original") or {}).get(level) or {}
+    if not isinstance(chosen, dict):
+        chosen = {}
+    defaults = CONFIG.get("default") or {}
+    level_default = defaults.get(level)
+    if not isinstance(level_default, dict):
+        level_default = {}
     if k_1 is None:
-        k_1 = chosen.get("k_1", level_params.get("k_1", default.get("k_1", 1.2)))
+        k_1 = chosen.get("k_1", level_default.get("k_1", defaults.get("k_1", 1.2)))
     if b is None:
-        b = chosen.get("b", level_params.get("b", default.get("b", 0.75)))
+        b = chosen.get("b", level_default.get("b", defaults.get("b", 0.75)))
     return float(k_1), float(b)
 
 
